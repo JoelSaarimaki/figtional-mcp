@@ -6,5 +6,18 @@
   },
   "include": ["src"],
   "exclude": ["src/**/*.test.ts"],
-  "references": [{ "path": "../fig-format" }, { "path": "../fig-model" }, { "path": "../mcp-server" }]
+  "references": [
+    {
+      "path": "../fig-format"
+    },
+    {
+      "path": "../fig-model"
+    },
+    {
+      "path": "../mcp-server"
+    },
+    {
+      "path": "../viewer"
+    }
+  ]
 }

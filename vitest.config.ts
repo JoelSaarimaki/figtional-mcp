@@ -11,6 +11,7 @@ export default defineConfig({
       '@figtional/fig-model': pkg('fig-model'),
       '@figtional/fig-render': pkg('fig-render'),
       '@figtional/mcp-server': pkg('mcp-server'),
+      '@figtional/viewer': pkg('viewer'),
     },
   },
   test: {

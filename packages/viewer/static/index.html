@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Figtional Viewer</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand" title="Figtional: read-only viewer for local .fig files">Figtional</div>
+      <select id="file-select" aria-label="File"></select>
+      <select id="page-select" aria-label="Page"></select>
+      <div class="spacer"></div>
+      <label class="toggle" title="Show prototype connections">
+        <input type="checkbox" id="proto-toggle" /> Prototype
+      </label>
+      <button id="present-btn" title="Present the prototype" hidden>▶ Present</button>
+      <div class="zoom">
+        <button id="zoom-out" title="Zoom out (-)">−</button>
+        <button id="zoom-label" title="Zoom to fit (Shift+1)">100%</button>
+        <button id="zoom-in" title="Zoom in (+)">+</button>
+      </div>
+      <span class="readonly" title="Figtional's viewer cannot edit files">View only</span>
+    </header>
+    <main class="layout">
+      <aside class="panel left">
+        <div class="panel-title">Layers</div>
+        <div id="layers" class="layers" role="tree"></div>
+      </aside>
+      <section id="canvas" class="canvas" tabindex="0" aria-label="Canvas">
+        <div id="world" class="world"></div>
+        <div id="status" class="status"></div>
+      </section>
+      <aside class="panel right">
+        <nav class="tabs">
+          <button data-tab="design" class="active">Design</button>
+          <button data-tab="file">File</button>
+        </nav>
+        <div id="inspect" class="inspect"></div>
+        <div id="fileinfo" class="inspect" hidden></div>
+      </aside>
+    </main>
+    <div id="present" class="present" hidden>
+      <div class="present-bar">
+        <select id="flow-select" aria-label="Flow"></select>
+        <button id="present-back" title="Back (Backspace)">← Back</button>
+        <button id="present-restart" title="Restart (R)">Restart</button>
+        <div class="spacer"></div>
+        <span id="present-title"></span>
+        <div class="spacer"></div>
+        <label class="toggle"><input type="checkbox" id="hotspot-toggle" /> Show hotspots</label>
+        <button id="present-close" title="Close (Esc)">✕ Close</button>
+      </div>
+      <div id="present-stage" class="present-stage"></div>
+    </div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

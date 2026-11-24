@@ -9,6 +9,7 @@
     "packages/fig-model",
     "packages/fig-render",
     "packages/mcp-server",
+    "packages/viewer",
     "packages/cli"
   ],
   "engines": {

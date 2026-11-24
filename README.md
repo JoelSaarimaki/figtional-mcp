@@ -12,7 +12,7 @@ Works on Windows, macOS and Linux.
 
 It also includes a read-only **web viewer** that renders a `.fig` file in the browser the way Figma does, with a page selector, a layer outline and an inspect panel.
 
-> **Status:** early development. Reading works: `whoami`, `get_metadata`, `get_variable_defs`, `get_screenshot`, `search_design_system`, `get_libraries`. Coming next: the web viewer, design context (code) and editing. See [PLAN.md](PLAN.md) for the roadmap.
+> **Status:** early development. Reading works (`whoami`, `get_metadata`, `get_variable_defs`, `get_screenshot`, `search_design_system`, `get_libraries`), and so does the web viewer. Coming next: design context (code) and editing. See [PLAN.md](PLAN.md) for the roadmap.
 
 ## Features
 
@@ -103,6 +103,8 @@ npx figtional serve ./designs/                   # folder → file switcher in t
 
 - File switcher and page selector (top bar)
 - Prototype flows: connection arrows and a click-through "Present" mode
+- Deep links: `?file=<key>&page=<id>&node-id=1-4` (add `&proto=1` or `&present=1`)
+- Reloads automatically when the file changes on disk, so you can watch an agent's edits
 - Layer outline (left)
 - Pan/zoom canvas
 - Inspect panel with node properties and file metadata (right)

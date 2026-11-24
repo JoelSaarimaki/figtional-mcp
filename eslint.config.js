@@ -13,6 +13,26 @@ export default tseslint.config(
     },
   },
   {
+    // The viewer client runs in the browser.
+    files: ['packages/viewer/static/**/*.js'],
+    languageOptions: {
+      globals: {
+        window: 'readonly',
+        document: 'readonly',
+        fetch: 'readonly',
+        location: 'readonly',
+        history: 'readonly',
+        URLSearchParams: 'readonly',
+        devicePixelRatio: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        setInterval: 'readonly',
+        Node: 'readonly',
+        console: 'readonly',
+      },
+    },
+  },
+  {
     rules: {
       // Decoded Figma data is loosely typed by nature; `any` is allowed at those boundaries.
       '@typescript-eslint/no-explicit-any': 'off',

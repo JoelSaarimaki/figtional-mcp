@@ -13,6 +13,7 @@ import {
   SERVER_VERSION,
 } from '@figtional/mcp-server';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { createViewerServer } from '@figtional/viewer';
 
 const HELP = `figtional ${SERVER_VERSION}: a local, file-scoped stand-in for the Figma MCP server
 
@@ -21,7 +22,7 @@ Usage:
   figtional dump <file.fig>                         Summarise a file (pages, node counts, format)
   figtional inspect <file.fig> <nodeId> [--json]    Show a node (XML outline, or decoded JSON)
   figtional validate <file.fig>                     Check that the file decodes and round-trips
-  figtional serve <file.fig | folder>...            Web viewer (not implemented yet)
+  figtional serve [options] <file.fig | folder>...  Read-only web viewer on http://127.0.0.1:3845
 
 MCP options:
   --writable            Allow edits to every source (read-only by default)
@@ -30,6 +31,9 @@ MCP options:
   --config <file>       Load sources from a figtional.config.json
   --extra-tools[=a,b]   Enable Figtional-only tools (all, or a comma-separated list):
                         ${EXTRA_TOOLS.join(', ')}
+
+Serve options: --port <n> (default 3845), --recursive, --config <file>. The viewer reloads
+automatically when a file changes on disk.
 
 A folder source gives access to every .fig file directly inside it (and below it with --recursive).
 Nothing outside the given files and folders is accessible.
@@ -54,10 +58,7 @@ export async function main(argv: string[]): Promise<number | undefined> {
     case 'validate':
       return validate(rest);
     case 'serve':
-      process.stderr.write(
-        'figtional serve: the web viewer is not implemented yet (PLAN.md milestone M6).\n',
-      );
-      return 2;
+      return serve(rest);
     case undefined:
     case '-h':
     case '--help':
@@ -85,6 +86,8 @@ export function parseMcpArgs(args: string[], cwd = process.cwd()) {
       out: { type: 'string' },
       config: { type: 'string' },
       'extra-tools': { type: 'string' },
+      port: { type: 'string' },
+      watch: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
     // --extra-tools without a value
@@ -131,6 +134,7 @@ export function parseMcpArgs(args: string[], cwd = process.cwd()) {
       ? resolve(base, config.outDir)
       : undefined;
   return {
+    port: values.port ? Number(values.port) : undefined,
     workspace: {
       sources,
       writable: values.writable === true || config.writable === true,
@@ -139,6 +143,27 @@ export function parseMcpArgs(args: string[], cwd = process.cwd()) {
     },
     extraTools,
   };
+}
+
+async function serve(args: string[]): Promise<number | undefined> {
+  if (args.includes('--help') || args.includes('-h')) {
+    process.stdout.write(HELP);
+    return 0;
+  }
+  const { workspace: wsOpts, port } = parseMcpArgs(args);
+  const workspace = new Workspace({ ...wsOpts, writable: false });
+  const files = workspace.listFiles();
+  const server = createViewerServer(workspace, port ? { port } : {});
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port ?? 3845, () => resolve());
+  });
+  const addr = server.address();
+  const actualPort = typeof addr === 'object' && addr ? addr.port : (port ?? 3845);
+  process.stdout.write(
+    `Figtional viewer: http://127.0.0.1:${actualPort}/  (${files.length} file(s); read-only; Ctrl+C to stop)\n`,
+  );
+  return undefined;
 }
 
 async function runMcp(args: string[]): Promise<number | undefined> {

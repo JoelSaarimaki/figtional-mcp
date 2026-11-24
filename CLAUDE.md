@@ -17,8 +17,8 @@ packages/fig-format   # .fig zip + fig-kiwi + kiwi decode/encode, blob codecs (p
 packages/fig-model    # document tree, instance resolution, variables, mutations
 packages/fig-render   # node → SVG / PNG (resvg); render-diff tests against Figma exports
 packages/mcp-server   # MCP tools (Figma-compatible names + figtional_* extras), Workspace (source scoping)
-packages/viewer       # (planned, M6) local read-only web viewer
-packages/cli          # `figtional` CLI: mcp | dump | inspect | validate (serve planned)
+packages/viewer       # read-only web viewer: src/server.ts (API) + static/ (plain JS client, no build step)
+packages/cli          # `figtional` CLI: mcp | serve | dump | inspect | validate
 test/                 # shared test helpers: synthetic .fig builder, References/ paths
 References/           # real Figma exports + screenshots + PNG/SVG exports (local only, git-ignored; free to read)
 docs/                 # fig-format.md (format notes), figma-mcp-tools.md (official tool schema snapshot), compat-log.md
