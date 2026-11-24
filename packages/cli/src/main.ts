@@ -71,10 +71,9 @@ folder and system folders, and stops after 2000 folders or 8 levels.
 
 Options:
   --port <n>            Port (default 3846)
-  --recursive           Include subfolders of folder sources
   --config <file>       Load sources from a figtional.config.json
 
-${SCOPE_NOTE}
+Folders are searched including their subfolders (hidden folders and node_modules are skipped).
 `,
   dump: `Usage: figtional dump <file.fig>
 
@@ -184,7 +183,11 @@ export function unsafeDefaultFolder(
 }
 
 /** Builds workspace options from CLI args and an optional config file. */
-export function parseMcpArgs(args: string[], cwd = process.cwd(), opts: { defaultToCwd?: boolean } = {}) {
+export function parseMcpArgs(
+  args: string[],
+  cwd = process.cwd(),
+  opts: { defaultToCwd?: boolean; recursiveFolders?: boolean } = {},
+) {
   const { values, positionals } = parseArgs({
     args,
     allowPositionals: true,
@@ -219,7 +222,11 @@ export function parseMcpArgs(args: string[], cwd = process.cwd(), opts: { defaul
     } catch {
       throw new Error(`source not found: ${abs}`);
     }
-    sources.push(isDir ? { dir: abs, recursive: values.recursive === true } : { file: abs });
+    sources.push(
+      isDir
+        ? { dir: abs, recursive: values.recursive === true || opts.recursiveFolders === true }
+        : { file: abs },
+    );
   }
   // The viewer defaults to the current folder (recursively); the MCP server never guesses its scope.
   if (!sources.length && opts.defaultToCwd) {
@@ -268,7 +275,10 @@ async function serve(args: string[]): Promise<number | undefined> {
     process.stdout.write(COMMAND_HELP.serve!);
     return 0;
   }
-  const { workspace: wsOpts, port } = parseMcpArgs(args, process.cwd(), { defaultToCwd: true });
+  const { workspace: wsOpts, port } = parseMcpArgs(args, process.cwd(), {
+    defaultToCwd: true,
+    recursiveFolders: true,
+  });
   const workspace = new Workspace({ ...wsOpts, writable: false });
   const files = workspace.listFiles();
   for (const s of workspace.describeScope()) {

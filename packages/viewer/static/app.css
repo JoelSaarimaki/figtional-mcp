@@ -179,6 +179,11 @@ select:focus {
   overflow: hidden;
   outline: none;
   cursor: default;
+  /* The canvas handles pointer input itself: no text selection, touch panning or callouts. */
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  -webkit-touch-callout: none;
 }
 .canvas.panning {
   cursor: grabbing;
@@ -200,6 +205,8 @@ select:focus {
   height: 100%;
   user-select: none;
   -webkit-user-drag: none;
+  /* The canvas handles input; images never get hover (avoids browser image hover menus). */
+  pointer-events: none;
 }
 .label {
   position: absolute;
@@ -382,6 +389,13 @@ table.vars th {
 }
 .screen img {
   display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+.present {
+  user-select: none;
+  -webkit-user-select: none;
 }
 .hotspot {
   position: absolute;

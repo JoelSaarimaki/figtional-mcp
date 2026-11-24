@@ -99,3 +99,12 @@ describe('CLI help', () => {
     expect((await capture(['nope'])).code).toBe(2);
   });
 });
+
+describe('serve folder arguments', () => {
+  it('are recursive for the viewer, but not for mcp', () => {
+    const serve = parseMcpArgs([dir], dir, { defaultToCwd: true, recursiveFolders: true });
+    expect(serve.workspace.sources).toEqual([{ dir, recursive: true }]);
+    const mcp = parseMcpArgs([dir], dir);
+    expect(mcp.workspace.sources).toEqual([{ dir, recursive: false }]);
+  });
+});

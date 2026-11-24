@@ -250,13 +250,51 @@ canvas.addEventListener(
 );
 
 let drag = null;
+
+/** Ends a drag however the pointer went away (release, cancel, lost capture, window blur). */
+function endDrag() {
+  if (drag && canvas.hasPointerCapture?.(drag.pointerId)) {
+    try {
+      canvas.releasePointerCapture(drag.pointerId);
+    } catch {
+      /* already released */
+    }
+  }
+  drag = null;
+  canvas.classList.remove('panning');
+}
+
 canvas.addEventListener('pointerdown', (e) => {
-  canvas.focus();
-  drag = { x: e.clientX, y: e.clientY, panX: state.panX, panY: state.panY, moved: false };
+  // Left or middle button only; no native text selection, image drag or browser hover tools.
+  if (e.button !== 0 && e.button !== 1) return;
+  e.preventDefault();
+  canvas.focus({ preventScroll: true });
+  endDrag();
+  drag = {
+    pointerId: e.pointerId,
+    x: e.clientX,
+    y: e.clientY,
+    panX: state.panX,
+    panY: state.panY,
+    moved: false,
+  };
   canvas.setPointerCapture(e.pointerId);
 });
+canvas.addEventListener('pointercancel', endDrag);
+canvas.addEventListener('lostpointercapture', () => {
+  // A click (no movement) still needs its pointerup; only clear moved drags here.
+  if (drag?.moved) endDrag();
+});
+window.addEventListener('blur', endDrag);
+canvas.addEventListener('dragstart', (e) => e.preventDefault());
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('pointermove', (e) => {
   if (!drag) return;
+  // A release we never saw (e.g. outside the window): no buttons are held any more.
+  if (e.buttons === 0) {
+    endDrag();
+    return;
+  }
   const dx = e.clientX - drag.x;
   const dy = e.clientY - drag.y;
   if (!drag.moved && Math.hypot(dx, dy) < 4) return;
@@ -268,9 +306,8 @@ canvas.addEventListener('pointermove', (e) => {
 });
 canvas.addEventListener('pointerup', async (e) => {
   const d = drag;
-  drag = null;
-  canvas.classList.remove('panning');
-  if (!d || d.moved) return;
+  endDrag();
+  if (!d || d.moved || e.button !== 0) return;
   const r = canvas.getBoundingClientRect();
   const x = (e.clientX - r.left - state.panX) / state.zoom;
   const y = (e.clientY - r.top - state.panY) / state.zoom;
