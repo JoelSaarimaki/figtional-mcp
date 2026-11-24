@@ -18,28 +18,83 @@ import { createViewerServer } from '@figtional/viewer';
 
 const HELP = `figtional ${SERVER_VERSION}: a local, file-scoped stand-in for the Figma MCP server
 
-Usage:
-  figtional mcp [options] <file.fig | folder>...   Run the MCP server over stdio
-  figtional dump <file.fig>                         Summarise a file (pages, node counts, format)
-  figtional inspect <file.fig> <nodeId> [--json]    Show a node (XML outline, or decoded JSON)
-  figtional validate <file.fig>                     Check that the file decodes and round-trips
-  figtional serve [options] [file.fig | folder]...  Read-only web viewer on http://127.0.0.1:3846
-                                                    (no arguments: every .fig below the current folder)
+Usage: figtional <command> [options]
 
-MCP options:
-  --writable            Allow edits to every source (read-only by default)
+Commands:
+  mcp       Run the MCP server (stdio) for the given .fig files or folders
+  serve     Read-only web viewer on http://127.0.0.1:3846
+  dump      Summarise a .fig file (pages, node counts, format)
+  inspect   Show one node of a .fig file
+  validate  Check that a .fig file decodes and round-trips
+  help      Show help for a command: figtional help <command>
+
+Examples:
+  figtional serve                                  view every .fig below this folder
+  figtional mcp ./designs/App.fig                  let an agent read one file
+  figtional mcp --writable --out ./edited ./designs  let it edit copies of a folder's files
+  figtional inspect App.fig 1:4 --json
+
+Run "figtional <command> --help" for the options of a command.
+Global options: -h, --help   -v, --version
+Docs: https://github.com/JoelSaarimaki/figtional-mcp
+`;
+
+const SCOPE_NOTE = `A file source gives access to that file. A folder source gives access to every .fig file
+directly inside it (and below it with --recursive). Nothing else is accessible.`;
+
+const COMMAND_HELP: Record<string, string> = {
+  mcp: `Usage: figtional mcp [options] <file.fig | folder>...
+
+Runs the Figtional MCP server over stdio, exposing Figma MCP's tools (whoami, get_metadata,
+get_design_context, get_screenshot, get_variable_defs, search_design_system, get_libraries,
+use_figma, …) for the given sources only. Logs go to stderr.
+
+Options:
+  --writable            Allow edits (use_figma) to every source; read-only by default
   --recursive           Include subfolders of folder sources
-  --out <dir>           Save edited files here instead of overwriting originals
+  --out <dir>           Save edited files to <dir> instead of overwriting the originals
   --config <file>       Load sources from a figtional.config.json
   --extra-tools[=a,b]   Enable Figtional-only tools (all, or a comma-separated list):
                         ${EXTRA_TOOLS.join(', ')}
 
-Serve options: --port <n> (default 3846), --recursive, --config <file>. The viewer reloads
-automatically when a file changes on disk.
+${SCOPE_NOTE}
 
-A folder source gives access to every .fig file directly inside it (and below it with --recursive).
-Nothing outside the given files and folders is accessible.
-`;
+Example .mcp.json entry:
+  { "command": "node", "args": ["<repo>/packages/cli/dist/bin.js", "mcp", "./designs"] }
+`,
+  serve: `Usage: figtional serve [options] [file.fig | folder]...
+
+Starts the read-only web viewer (page selector, layers, inspect panel, prototype mode) on
+http://127.0.0.1:3846. It only listens on this computer and reloads when a file changes.
+Without sources it serves every .fig below the current folder, except from drive roots, your home
+folder and system folders, and stops after 2000 folders or 8 levels.
+
+Options:
+  --port <n>            Port (default 3846)
+  --recursive           Include subfolders of folder sources
+  --config <file>       Load sources from a figtional.config.json
+
+${SCOPE_NOTE}
+`,
+  dump: `Usage: figtional dump <file.fig>
+
+Prints the file name, export date, format version, node counts by type, styles, variables and
+the list of pages.
+`,
+  inspect: `Usage: figtional inspect <file.fig> <nodeId> [--json]
+
+Shows one node: an XML outline of its subtree (like get_metadata), or with --json the decoded
+.fig data of the node. Node ids look like 1:4 (or 1-4, as in Figma URLs); layers inside
+instances look like I1:2;3:4.
+`,
+  validate: `Usage: figtional validate <file.fig>
+
+Checks that the file decodes, that it re-encodes byte-for-byte, and reports the format version,
+schema hash and instances whose component is missing. Exit code 1 when a check fails.
+`,
+};
+
+const wantsHelp = (args: string[]) => args.includes('--help') || args.includes('-h');
 
 interface ConfigFile {
   sources?: SourceConfig[];
@@ -50,6 +105,19 @@ interface ConfigFile {
 
 export async function main(argv: string[]): Promise<number | undefined> {
   const [command, ...rest] = argv;
+  if (command && COMMAND_HELP[command] && wantsHelp(rest)) {
+    process.stdout.write(COMMAND_HELP[command]);
+    return 0;
+  }
+  if (command === 'help' && rest[0]) {
+    const text = COMMAND_HELP[rest[0]];
+    if (!text) {
+      process.stderr.write(`Unknown command "${rest[0]}".\n\n${HELP}`);
+      return 2;
+    }
+    process.stdout.write(text);
+    return 0;
+  }
   switch (command) {
     case 'mcp':
       return runMcp(rest);
@@ -197,7 +265,7 @@ export function parseMcpArgs(args: string[], cwd = process.cwd(), opts: { defaul
 
 async function serve(args: string[]): Promise<number | undefined> {
   if (args.includes('--help') || args.includes('-h')) {
-    process.stdout.write(HELP);
+    process.stdout.write(COMMAND_HELP.serve!);
     return 0;
   }
   const { workspace: wsOpts, port } = parseMcpArgs(args, process.cwd(), { defaultToCwd: true });
@@ -230,7 +298,7 @@ async function runMcp(args: string[]): Promise<number | undefined> {
   // Allow a bare `--extra-tools` flag (parseArgs needs a value for string options).
   const normalized = args.map((a) => (a === '--extra-tools' ? '--extra-tools=all' : a));
   if (normalized.includes('--help') || normalized.includes('-h')) {
-    process.stdout.write(HELP);
+    process.stdout.write(COMMAND_HELP.mcp!);
     return 0;
   }
   const { workspace: wsOpts, extraTools } = parseMcpArgs(normalized);
