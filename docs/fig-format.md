@@ -141,7 +141,17 @@ Colours are floats from 0 to 1. Gradient paints use `stops` and a `transform` (*
 | `minSize` / `maxSize` | `minWidth/minHeight` / `maxWidth/maxHeight` |
 | `stackLayoutVersion` | internal. Keep it. |
 
-The stored `size` and `transform` values already contain the **resolved** layout result, so the viewer doesn't need to run auto layout for unedited files. After an edit, layout must be recomputed or left for Figma to fix (*assumed*).
+The stored `size` and `transform` values already contain the **resolved** layout result, so the viewer doesn't need to run auto layout for unedited files. After an edit, `fig-model`'s `computeLayout` recomputes it.
+
+**Auto-layout semantics** (verified by re-laying out every auto-layout frame in the references and comparing with Figma's stored result: Responsive 100%, TTRPG 99.4%, Futurice 98.3% of children identical within 0.5 px; `packages/fig-model/src/layout.test.ts`):
+- **Defaults:** fields holding the enum's first value are omitted (alignment MIN, align-self AUTO, counter sizing FIXED, no wrap). **Primary sizing is the exception:** Figma writes `stackPrimarySizing: FIXED` explicitly and omits it when the frame hugs. `RESIZE_TO_FIT` and `RESIZE_TO_FIT_WITH_IMPLICIT_SIZE` both mean hug.
+- **Padding:** `stackPaddingRight`/`stackPaddingBottom` default to the left/top value when missing. With `bordersTakeSpace: true` (Plugin API `strokesIncludedInLayout`, border-box) and visible strokes, the frame's stroke widths (per side when `borderStrokeWeightsIndependent`) are added to the padding.
+- **Justify:** `SPACE_EVENLY` and `SPACE_BETWEEN` both behave as Figma's "auto" spacing (space between; one item is centred). `SPACE_AROUND`: half gaps at both ends.
+- **Hug:** primary = sum of children + spacing + padding; counter = largest child + padding. **An empty auto-layout frame keeps its stored ("implicit") size.**
+- **Fill:** `stackChildPrimaryGrow > 0` shares the free primary space equally; `stackChildAlignSelf: STRETCH` fills the counter axis. **Hug wins over a stale fill flag on the same axis:** an auto-layout child that hugs along that axis, or text that auto-sizes along it (`textAutoResize` HEIGHT → vertical; WIDTH_AND_HEIGHT → both), keeps its content size.
+- **min/max:** `minSize`/`maxSize` (`{ value: { x, y } }`, null = unset) clamp hug and fill sizes. A stretch child capped by `maxSize` is placed by the parent's alignment.
+- **Absolute** children (`stackPositioning: ABSOLUTE`) and hidden children are skipped. Rotated children take up their rotated bounding box.
+- **Instance sublayers** are not reliable ground truth: Figma stores `derivedSymbolData` only for some sublayers, and the rest keep the component's geometry even when a property hides a sibling (e.g. TTRPG "Statbar"). Figma lays them out at draw time. Hence `computeLayout` keeps an instance's stored size unless it is marked dirty.
 
 ### 4.7 TEXT, verified
 - Style: `fontName { family, style, postscript }`, `fontSize`, `lineHeight { value, units: "PERCENT"|"PIXELS"|"RAW" }`, `letterSpacing`, `textAlignHorizontal`, `textAlignVertical`, `textAutoResize`, `textCase`, `textDecoration…`, `maxLines`, `textTruncation`, `hyperlink`, `styleIdForText`.

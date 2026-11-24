@@ -381,6 +381,18 @@ export class FigDocument {
   }
 
   private applyComponentProps(data: NodeChange, ctx: InstanceContext): void {
+    // Newer files bind properties through parameterConsumptionMap (verified: VISIBLE in Futurice.com UI).
+    for (const e of data.parameterConsumptionMap?.entries ?? []) {
+      const defId = e.variableData?.value?.propRefValue?.defId;
+      if (!defId) continue;
+      const value = this.lookupProp(ctx.props, defId);
+      if (value === undefined) continue;
+      if (e.variableField === 'VISIBLE' && value.boolValue !== undefined) data.visible = value.boolValue;
+      else if (e.variableField === 'TEXT_DATA' && value.textValue) {
+        data.textData = value.textValue;
+        if (value.legacyDerivedTextData) data.derivedTextData = value.legacyDerivedTextData;
+      }
+    }
     for (const ref of data.componentPropRefs ?? []) {
       if (ref.isDeleted) continue;
       const value = this.lookupProp(ctx.props, ref.defID);
