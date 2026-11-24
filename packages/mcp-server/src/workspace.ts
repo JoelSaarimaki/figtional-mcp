@@ -269,7 +269,8 @@ function scanFolder(root: string, recursive: boolean, outDir: string | undefined
       return;
     }
     for (const name of names.sort()) {
-      if (name.startsWith('.')) continue; // hidden files, including our own temp files
+      if (name.startsWith('.')) continue; // hidden files and folders, including our own temp files
+      if (name === 'node_modules') continue; // never holds designs; can be huge
       const full = join(dir, name);
       let st;
       try {

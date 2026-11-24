@@ -22,7 +22,8 @@ Usage:
   figtional dump <file.fig>                         Summarise a file (pages, node counts, format)
   figtional inspect <file.fig> <nodeId> [--json]    Show a node (XML outline, or decoded JSON)
   figtional validate <file.fig>                     Check that the file decodes and round-trips
-  figtional serve [options] <file.fig | folder>...  Read-only web viewer on http://127.0.0.1:3846
+  figtional serve [options] [file.fig | folder]...  Read-only web viewer on http://127.0.0.1:3846
+                                                    (no arguments: every .fig below the current folder)
 
 MCP options:
   --writable            Allow edits to every source (read-only by default)
@@ -76,7 +77,7 @@ export async function main(argv: string[]): Promise<number | undefined> {
 }
 
 /** Builds workspace options from CLI args and an optional config file. */
-export function parseMcpArgs(args: string[], cwd = process.cwd()) {
+export function parseMcpArgs(args: string[], cwd = process.cwd(), opts: { defaultToCwd?: boolean } = {}) {
   const { values, positionals } = parseArgs({
     args,
     allowPositionals: true,
@@ -113,6 +114,8 @@ export function parseMcpArgs(args: string[], cwd = process.cwd()) {
     }
     sources.push(isDir ? { dir: abs, recursive: values.recursive === true } : { file: abs });
   }
+  // The viewer defaults to the current folder (recursively); the MCP server never guesses its scope.
+  if (!sources.length && opts.defaultToCwd) sources.push({ dir: cwd, recursive: true });
   if (!sources.length) throw new Error('no sources given. Pass .fig files or folders, or --config.');
   const extraArg = values['extra-tools'];
   const extraTools: boolean | string[] =
@@ -150,9 +153,18 @@ async function serve(args: string[]): Promise<number | undefined> {
     process.stdout.write(HELP);
     return 0;
   }
-  const { workspace: wsOpts, port } = parseMcpArgs(args);
+  const { workspace: wsOpts, port } = parseMcpArgs(args, process.cwd(), { defaultToCwd: true });
   const workspace = new Workspace({ ...wsOpts, writable: false });
   const files = workspace.listFiles();
+  for (const s of workspace.describeScope()) {
+    const what = s.kind === 'folder' ? `folder ${s.path}${s.recursive ? ' (with subfolders)' : ''}` : s.path;
+    process.stdout.write(`Serving ${what}\n`);
+  }
+  if (!files.length) {
+    process.stdout.write(
+      'No .fig files found. Pass files or folders: figtional serve <file.fig | folder>...\n',
+    );
+  }
   const server = createViewerServer(workspace, port ? { port } : {});
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
