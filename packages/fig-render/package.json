@@ -1,0 +1,24 @@
+{
+  "name": "@figtional/fig-render",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Render .fig nodes to SVG and PNG.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@figtional/fig-format": "*",
+    "@figtional/fig-model": "*",
+    "@resvg/resvg-js": "^2.6.2"
+  }
+}

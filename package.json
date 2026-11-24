@@ -1,0 +1,39 @@
+{
+  "name": "figtional-monorepo",
+  "private": true,
+  "description": "Figtional MCP: a local, file-scoped stand-in for the Figma MCP server, backed by .fig exports.",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/fig-format",
+    "packages/fig-model",
+    "packages/fig-render",
+    "packages/mcp-server",
+    "packages/cli"
+  ],
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean",
+    "typecheck": "tsc -b --noEmit false",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "@types/node": "^22.15.0",
+    "eslint": "^9.39.0",
+    "prettier": "^3.6.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.74.0",
+    "vitest": "^4.0.0",
+    "pngjs": "^7.0.0",
+    "pixelmatch": "^7.1.0",
+    "@types/pngjs": "^6.0.5"
+  }
+}

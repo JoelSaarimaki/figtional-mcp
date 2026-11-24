@@ -1,0 +1,28 @@
+{
+  "name": "@figtional/cli",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The figtional command line: mcp, serve, dump, inspect, validate.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "figtional": "./dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@figtional/fig-format": "*",
+    "@figtional/fig-model": "*",
+    "@figtional/mcp-server": "*",
+    "@modelcontextprotocol/sdk": "^1.32.2"
+  }
+}

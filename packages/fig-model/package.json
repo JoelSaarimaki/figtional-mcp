@@ -1,0 +1,22 @@
+{
+  "name": "@figtional/fig-model",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Document model for decoded .fig files: tree, components, styles, variables, mutations.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@figtional/fig-format": "*"
+  }
+}

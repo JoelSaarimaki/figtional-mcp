@@ -1,0 +1,26 @@
+{
+  "name": "@figtional/mcp-server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Figma-compatible MCP server backed by local .fig files.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@figtional/fig-format": "*",
+    "@figtional/fig-model": "*",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "zod": "^4.0.0",
+    "@figtional/fig-render": "*"
+  }
+}

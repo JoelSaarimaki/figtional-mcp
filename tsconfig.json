@@ -1,0 +1,20 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "packages/fig-format"
+    },
+    {
+      "path": "packages/fig-model"
+    },
+    {
+      "path": "packages/fig-render"
+    },
+    {
+      "path": "packages/mcp-server"
+    },
+    {
+      "path": "packages/cli"
+    }
+  ]
+}

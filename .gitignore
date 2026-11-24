@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.tsbuildinfo
+*.bak
+.env
+coverage/
+# Reference Figma files are local study material only: never commit them.
+# What we learn from them goes into docs/fig-format.md and tests.
+References/
+compat-out/

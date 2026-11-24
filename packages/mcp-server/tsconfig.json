@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"],
+  "references": [
+    {
+      "path": "../fig-format"
+    },
+    {
+      "path": "../fig-model"
+    },
+    {
+      "path": "../fig-render"
+    }
+  ]
+}
