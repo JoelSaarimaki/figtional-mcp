@@ -141,7 +141,7 @@ return { id: card.id };
 - Each successful call is saved to the file right away (with a `.bak` of the previous version), or to `--out <dir>`.
 - A call that throws changes nothing. Figma can leave partial edits behind; Figtional doesn't.
 - Text is measured with fonts installed on your machine and auto layout is recalculated, so screenshots and the viewer show the result. Figma recalculates text layout itself when you import the file.
-- Supported: creating and editing frames, auto layout, rectangles, ellipses, lines, text, components and instances, pages and variables; text/visibility/fill overrides inside instances; `node.screenshot()`. Unsupported calls fail with `NotSupportedInFigtional: …`.
+- Supported: creating and editing frames, auto layout, rectangles, ellipses, lines, text, pages and variables; components with properties (text, boolean, instance swap) and variants (`combineAsVariants`, `setProperties`, `detachInstance`); text/visibility/fill overrides inside instances; `node.screenshot()`. Unsupported calls fail with `NotSupportedInFigtional: …`.
 
 ## How it works
 
@@ -149,7 +149,7 @@ A `.fig` export is a ZIP archive containing `canvas.fig` (Figma's binary **fig-k
 
 ## Limitations
 
-- `use_figma` supports a **subset** of the Plugin API. Calls that are not supported fail with a clear `NotSupportedInFigtional` error; that is a Figtional limitation, not necessarily a Figma one. Not supported yet: component properties and variants, detaching instances, creating styles, vectors/SVG import, new images, prototype interactions.
+- `use_figma` supports a **subset** of the Plugin API. Calls that are not supported fail with a clear `NotSupportedInFigtional` error; that is a Figtional limitation, not necessarily a Figma one. Not supported yet: creating styles, vectors/SVG import, new images, prototype interactions.
 - The `use_figma` sandbox (Node's `vm`) keeps scripts away from `require`, files and the network by convention, but it is not a security boundary. The access boundary is the file scope you start Figtional with.
 - Rendering is visually faithful but not pixel-identical to Figma (some blend modes, effects and text shaping differ).
 - Text that hasn't been edited is drawn exactly as Figma laid it out. Edited or new text uses **fonts installed on your machine**. If a design font is missing, Figtional falls back to a basic sans-serif, serif or monospace font for display, but the file keeps the original font, so Figma shows it correctly after import.

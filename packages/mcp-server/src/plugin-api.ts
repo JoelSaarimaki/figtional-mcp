@@ -5,6 +5,11 @@
  */
 import { type GUID, type NodeChange, guidToString } from '@figtional/fig-format';
 import {
+  ComponentOps,
+  copyInstanceFields,
+  type PropType,
+  parseVariantName,
+  propertyDefinitionMap,
   type EditSession,
   type FigDocument,
   type SceneNode,
@@ -251,6 +256,7 @@ const FIELD_TO_VARIABLE: Record<string, string> = {
 
 export function createFigmaApi(ctx: ApiContext) {
   const { doc, session } = ctx;
+  const components = new ComponentOps(doc, session);
   const loadedFonts = new Set<string>();
   const fontKey = (f: { family: string; style: string }) => `${f.family}\u0000${f.style}`;
   const isFontLoaded = (f: { family: string; style: string }) =>
@@ -320,6 +326,11 @@ export function createFigmaApi(ctx: ApiContext) {
     Object.assign(raw, fields);
     if (opts.text) session.markText(id);
     else session.markDirty(id);
+  };
+
+  /** Figma lays out immediately; apply pending layout before geometry is read. */
+  const flushLayout = () => {
+    if (session.dirty.size) session.commit();
   };
 
   const typeError = (prop: string, type: string) =>
@@ -530,6 +541,7 @@ export function createFigmaApi(ctx: ApiContext) {
 
     // ------------------------------------------------ geometry
     get x() {
+      flushLayout();
       return this._s.relativeTransform.m02;
     }
     set x(v: number) {
@@ -537,6 +549,7 @@ export function createFigmaApi(ctx: ApiContext) {
       editRaw(this.id, { transform: t });
     }
     get y() {
+      flushLayout();
       return this._s.relativeTransform.m12;
     }
     set y(v: number) {
@@ -544,12 +557,15 @@ export function createFigmaApi(ctx: ApiContext) {
       editRaw(this.id, { transform: t });
     }
     get width() {
+      flushLayout();
       return this._s.width;
     }
     get height() {
+      flushLayout();
       return this._s.height;
     }
     get rotation() {
+      flushLayout();
       return rotationDegrees(this._s.relativeTransform);
     }
     set rotation(deg: number) {
@@ -567,6 +583,7 @@ export function createFigmaApi(ctx: ApiContext) {
       });
     }
     get absoluteTransform() {
+      flushLayout();
       const t = this._s.absoluteTransform;
       return [
         [t.m00, t.m01, t.m02],
@@ -574,6 +591,7 @@ export function createFigmaApi(ctx: ApiContext) {
       ];
     }
     get relativeTransform() {
+      flushLayout();
       const t = this._s.relativeTransform;
       return [
         [t.m00, t.m01, t.m02],
@@ -581,6 +599,7 @@ export function createFigmaApi(ctx: ApiContext) {
       ];
     }
     get absoluteBoundingBox() {
+      flushLayout();
       const b = this._s.absoluteBoundingBox;
       return { x: b.x, y: b.y, width: b.width, height: b.height };
     }
@@ -1322,56 +1341,76 @@ export function createFigmaApi(ctx: ApiContext) {
     }
     get componentProperties() {
       if (this.type !== 'INSTANCE') throw typeError('componentProperties', this.type);
-      const out: Record<string, unknown> = {};
-      const main = this._s.mainComponent;
-      if (main?.parent?.type === 'COMPONENT_SET') {
-        for (const part of main.name.split(',')) {
-          const [k, v] = part.split('=').map((x) => x.trim());
-          if (k && v !== undefined) out[k] = { type: 'VARIANT', value: v };
+      return deepFreeze(components.instanceProperties(this._s));
+    }
+    get variantProperties() {
+      if (this.type === 'INSTANCE') {
+        const main = this._s.mainComponent;
+        return main?.parent?.type === 'COMPONENT_SET'
+          ? Object.fromEntries(parseVariantName(main.name))
+          : null;
+      }
+      if (this.type === 'COMPONENT') {
+        return this._s.parent?.type === 'COMPONENT_SET'
+          ? Object.fromEntries(parseVariantName(this.name))
+          : null;
+      }
+      throw typeError('variantProperties', this.type);
+    }
+    get variantGroupProperties() {
+      if (this.type !== 'COMPONENT_SET') throw typeError('variantGroupProperties', this.type);
+      const defs = propertyDefinitionMap(doc, this._d) as Record<string, any>;
+      return Object.fromEntries(
+        Object.entries(defs)
+          .filter(([, d]) => d.type === 'VARIANT')
+          .map(([k, d]) => [k, { values: d.variantOptions }]),
+      );
+    }
+    get defaultVariant() {
+      if (this.type !== 'COMPONENT_SET') throw typeError('defaultVariant', this.type);
+      return wrap(this._s.children.find((c) => c.type === 'COMPONENT'));
+    }
+    get componentPropertyReferences() {
+      return components.references(this._d);
+    }
+    set componentPropertyReferences(refs: Record<string, string> | null) {
+      if (this._s.isInstanceSublayer) throw new Error('Cannot bind properties on a layer inside an instance');
+      const current = components.references(this._d);
+      const next = refs ?? {};
+      for (const field of ['characters', 'visible', 'mainComponent'] as const) {
+        if (next[field] !== current[field]) {
+          if (field === 'characters') requireFonts(this._d);
+          components.bindProperty(this.id, field, next[field] ?? null);
         }
       }
-      return out;
+      for (const k of Object.keys(next)) {
+        if (!['characters', 'visible', 'mainComponent'].includes(k)) {
+          throw new FigtionalUnsupported(`componentPropertyReferences.${k}`);
+        }
+      }
     }
     createInstance() {
       if (this.type !== 'COMPONENT') throw typeError('createInstance', this.type);
       const sym = this._s;
       const page = scene(currentPageId!);
-      const n = session.create('INSTANCE', page.id, undefined, {
-        name: sym.name,
+      const fields: Record<string, unknown> = {
+        // Instances of variants are named after their component set, as in Figma.
+        name: sym.parent?.type === 'COMPONENT_SET' ? sym.parent.name : sym.name,
         visible: true,
         opacity: 1,
-        size: { x: sym.width, y: sym.height },
         transform: { ...IDENTITY_T },
         symbolData: { symbolID: { ...sym.data.guid }, symbolOverrides: [], uniformScaleFactor: 1 },
-        strokeWeight: sym.data.strokeWeight ?? 1,
-        strokeAlign: sym.data.strokeAlign ?? 'INSIDE',
         strokeJoin: 'MITER',
-        ...copyFields(sym.data, [
-          'fillPaints',
-          'strokePaints',
-          'cornerRadius',
-          'frameMaskDisabled',
-          'stackMode',
-          'stackSpacing',
-          'stackHorizontalPadding',
-          'stackVerticalPadding',
-          'stackPaddingRight',
-          'stackPaddingBottom',
-          'stackPrimarySizing',
-          'stackCounterSizing',
-          'stackPrimaryAlignItems',
-          'stackCounterAlignItems',
-          'effects',
-        ]),
-      });
+      };
+      copyInstanceFields(fields as NodeChange, sym.data);
+      const n = session.create('INSTANCE', page.id, undefined, fields);
       return wrap(scene(guidToString(n.guid)));
     }
     detachInstance() {
       if (this.type !== 'INSTANCE') throw typeError('detachInstance', this.type);
-      throw new FigtionalUnsupported(
-        'detachInstance',
-        'Planned. Meanwhile edit the main component or clone its content.',
-      );
+      const frame = components.detach(this._s);
+      wrappers.delete(this.id);
+      return wrap(scene(guidToString(frame.guid)));
     }
     swapComponent(component: any) {
       if (this.type !== 'INSTANCE') throw typeError('swapComponent', this.type);
@@ -1385,17 +1424,65 @@ export function createFigmaApi(ctx: ApiContext) {
       delete raw.derivedSymbolData;
       session.markDirty(this.id);
     }
-    setProperties(_props: Record<string, unknown>) {
-      throw new FigtionalUnsupported(
-        'instance.setProperties',
-        'Planned. For variants, use swapComponent with the variant component.',
-      );
+    setProperties(props: Record<string, unknown>) {
+      if (this.type !== 'INSTANCE') throw typeError('setProperties', this.type);
+      const s = this._s;
+      // Text properties change text: the fonts of bound text layers must be loaded, as in Figma.
+      s.walk((n) => {
+        if (
+          n !== s &&
+          n.figType === 'TEXT' &&
+          (n.data.componentPropRefs ?? []).some((r: any) => r.componentPropNodeField === 'TEXT_DATA')
+        ) {
+          requireFonts(n.data);
+        }
+        return true;
+      });
+      components.setInstanceProperties(s, props ?? {}, (fields) => {
+        if (s.isInstanceSublayer) session.setOverride(s, fields);
+        else {
+          Object.assign(session.raw(this.id), fields);
+          session.markDirty(this.id);
+        }
+      });
+    }
+    private definitionOwnerId(prop: string): string {
+      if (this.type === 'COMPONENT_SET') return this.id;
+      if (this.type === 'COMPONENT') {
+        if (this._s.parent?.type === 'COMPONENT_SET') {
+          throw new Error(
+            'Can only get/set component property definitions of a component set or non-variant component',
+          );
+        }
+        return this.id;
+      }
+      throw typeError(prop, this.type);
     }
     get componentPropertyDefinitions() {
-      throw new FigtionalUnsupported('componentPropertyDefinitions');
+      return deepFreeze(
+        propertyDefinitionMap(doc, session.raw(this.definitionOwnerId('componentPropertyDefinitions'))),
+      );
     }
-    addComponentProperty() {
-      throw new FigtionalUnsupported('addComponentProperty', 'Component properties are planned.');
+    addComponentProperty(
+      name: string,
+      type: string,
+      defaultValue: unknown,
+      options?: { preferredValues?: { type: string; key: string }[] },
+    ) {
+      const owner = this.definitionOwnerId('addComponentProperty');
+      return components.addProperty(
+        owner,
+        String(name),
+        type as PropType,
+        defaultValue,
+        options?.preferredValues,
+      );
+    }
+    editComponentProperty(key: string, values: { name?: string; defaultValue?: unknown }) {
+      return components.editProperty(this.definitionOwnerId('editComponentProperty'), key, values ?? {});
+    }
+    deleteComponentProperty(key: string) {
+      components.deleteProperty(this.definitionOwnerId('deleteComponentProperty'), key);
     }
 
     // ------------------------------------------------ variables
@@ -1555,12 +1642,6 @@ export function createFigmaApi(ctx: ApiContext) {
       return true;
     }
     return false;
-  }
-
-  function copyFields(d: NodeChange, fields: string[]) {
-    const out: Record<string, unknown> = {};
-    for (const f of fields) if (d[f] !== undefined) out[f] = structuredClone(d[f]);
-    return out;
   }
 
   // ------------------------------------------------------------------ query()
@@ -2111,8 +2192,18 @@ export function createFigmaApi(ctx: ApiContext) {
       });
       return wrap(scene(guidToString(n.guid)));
     },
-    combineAsVariants() {
-      throw new FigtionalUnsupported('combineAsVariants', 'Component sets/variants are planned.');
+    combineAsVariants(nodes: any[], parent: any, index?: number) {
+      if (!Array.isArray(nodes) || !nodes.length)
+        throw new Error('combineAsVariants requires an array of components');
+      if (nodes.some((n) => n?.type !== 'COMPONENT'))
+        throw new Error('combineAsVariants: all nodes must be ComponentNodes');
+      if (!parent || !('appendChild' in parent)) throw new Error('combineAsVariants requires a parent node');
+      const set = components.combineAsVariants(
+        nodes.map((n) => n.id),
+        parent.id,
+        index,
+      );
+      return wrap(scene(guidToString(set.guid)));
     },
     group() {
       throw new FigtionalUnsupported('figma.group', 'Use a frame (createFrame / createAutoLayout) instead.');

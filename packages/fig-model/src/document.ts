@@ -215,6 +215,12 @@ export class FigDocument {
     this.sceneCache = new Map([[this.root.id, this.root]]);
   }
 
+  /** Drops cached scene nodes (expanded instances, child lists) after data edits. Cheap. */
+  invalidateScenes(): void {
+    this.root = new SceneNode(this, this.root.id, this.root.data, undefined);
+    this.sceneCache = new Map([[this.root.id, this.root]]);
+  }
+
   get message() {
     return this.canvas.message;
   }
@@ -341,7 +347,13 @@ export class FigDocument {
       }
       props = new Map(outer.props); // outer assignments stay visible for nested refs
     }
-    for (const a of inst.data.componentPropAssignments ?? []) props.set(guidToString(a.defID), a.value);
+    for (const a of inst.data.componentPropAssignments ?? []) {
+      // Figma's layout for an assigned text lives on the assignment, next to the value.
+      props.set(
+        guidToString(a.defID),
+        a.legacyDerivedTextData ? { ...a.value, legacyDerivedTextData: a.legacyDerivedTextData } : a.value,
+      );
+    }
 
     const ctx: InstanceContext = {
       root: outer?.root ?? inst,
@@ -377,6 +389,9 @@ export class FigDocument {
     }
     const d = ctx.derived.get(key);
     if (d) for (const [f, v] of Object.entries(d)) if (!DERIVED_FIELDS_SKIP.has(f)) data[f] = v;
+    // Text changed by an override without Figma's layout for it: the component's glyphs are stale.
+    if (data.textData !== src.textData && !d?.derivedTextData && textChanged(src, data))
+      delete data.derivedTextData;
     this.applyComponentProps(data, ctx);
     const id = `${ctx.idPrefix};${guidToString(overrideId(src))}`;
     return new SceneNode(this, id, data, parent, { ...ctx, path: ctx.path });
@@ -391,8 +406,10 @@ export class FigDocument {
       if (value === undefined) continue;
       if (e.variableField === 'VISIBLE' && value.boolValue !== undefined) data.visible = value.boolValue;
       else if (e.variableField === 'TEXT_DATA' && value.textValue) {
+        const before = data.textData;
         data.textData = value.textValue;
         if (value.legacyDerivedTextData) data.derivedTextData = value.legacyDerivedTextData;
+        else if (textChanged({ textData: before }, data)) delete data.derivedTextData;
       }
     }
     for (const ref of data.componentPropRefs ?? []) {
@@ -402,9 +419,11 @@ export class FigDocument {
       switch (ref.componentPropNodeField) {
         case 'TEXT_DATA':
           if (value.textValue) {
+            const before = data.textData;
             data.textData = value.textValue;
             // The assignment may carry Figma's layout for the new text; otherwise it's stale.
             if (value.legacyDerivedTextData) data.derivedTextData = value.legacyDerivedTextData;
+            else if (textChanged({ textData: before }, data)) delete data.derivedTextData;
           }
           break;
         case 'VISIBLE':
@@ -489,6 +508,10 @@ export function isGroupData(n: NodeChange): boolean {
     !n.strokePaints?.length &&
     (!n.stackMode || n.stackMode === 'NONE')
   );
+}
+
+function textChanged(a: Record<string, any>, b: Record<string, any>): boolean {
+  return (a.textData?.characters ?? '') !== (b.textData?.characters ?? '');
 }
 
 export function isInternalPage(n: NodeChange): boolean {

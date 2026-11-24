@@ -38,10 +38,13 @@ enum TextAlignHorizontal { LEFT = 0; CENTER = 1; RIGHT = 2; JUSTIFIED = 3; }
 enum TextAlignVertical { TOP = 0; CENTER = 1; BOTTOM = 2; }
 enum NumberUnits { RAW = 0; PIXELS = 1; PERCENT = 2; }
 enum EffectType { INNER_SHADOW = 0; DROP_SHADOW = 1; FOREGROUND_BLUR = 2; BACKGROUND_BLUR = 3; LAYER_BLUR = 4; }
-enum VariableResolvedDataType { BOOLEAN = 0; FLOAT = 1; STRING = 2; COLOR = 4; }
-enum VariableDataType { BOOLEAN = 0; FLOAT = 1; STRING = 2; ALIAS = 3; COLOR = 4; }
-enum VariableField { MISSING = 0; CORNER_RADIUS = 1; STACK_SPACING = 5; STACK_PADDING_LEFT = 6; STACK_PADDING_TOP = 7; STACK_PADDING_RIGHT = 8; STACK_PADDING_BOTTOM = 9; VISIBLE = 10; WIDTH = 12; HEIGHT = 13; OPACITY = 31; FONT_SIZE = 32; }
+enum VariableResolvedDataType { BOOLEAN = 0; FLOAT = 1; STRING = 2; COLOR = 4; SYMBOL_ID = 7; TEXT_DATA = 9; }
+enum VariableDataType { BOOLEAN = 0; FLOAT = 1; STRING = 2; ALIAS = 3; COLOR = 4; SYMBOL_ID = 7; TEXT_DATA = 9; PROP_REF = 13; }
+enum VariableField { MISSING = 0; CORNER_RADIUS = 1; STACK_SPACING = 5; STACK_PADDING_LEFT = 6; STACK_PADDING_TOP = 7; STACK_PADDING_RIGHT = 8; STACK_PADDING_BOTTOM = 9; VISIBLE = 10; TEXT_DATA = 11; WIDTH = 12; OVERRIDDEN_SYMBOL_ID = 40; HEIGHT = 13; OPACITY = 31; FONT_SIZE = 32; }
 enum CodeSyntaxPlatform { WEB = 0; ANDROID = 1; iOS = 2; }
+enum ComponentPropType { BOOL = 0; TEXT = 1; COLOR = 2; INSTANCE_SWAP = 3; VARIANT = 4; NUMBER = 5; IMAGE = 6; SLOT = 7; }
+enum ComponentPropNodeField { VISIBLE = 0; TEXT_DATA = 1; OVERRIDDEN_SYMBOL_ID = 2; INHERIT_FILL_STYLE_ID = 3; SLOT_CONTENT_ID = 4; }
+enum InstanceSwapPreferredValueType { COMPONENT = 0; COMPONENT_SET = 1; }
 struct GUID { uint sessionID; uint localID; }
 struct Vector { float x; float y; }
 struct Matrix { float m00; float m01; float m02; float m10; float m11; float m12; }
@@ -52,7 +55,9 @@ message Image { byte[] hash = 1; string name = 2; }
 message ColorStop { Color color = 1; float position = 2; }
 message AssetRef { string key = 1; string version = 2; }
 message VariableID { GUID guid = 1; AssetRef assetRef = 2; }
-message VariableAnyValue { bool boolValue = 1; string textValue = 2; float floatValue = 3; VariableID alias = 4; Color colorValue = 5; }
+message SymbolId { GUID guid = 1; AssetRef assetRef = 2; }
+message PropRefValue { GUID defId = 1; }
+message VariableAnyValue { bool boolValue = 1; string textValue = 2; float floatValue = 3; VariableID alias = 4; Color colorValue = 5; SymbolId symbolIdValue = 6; TextData textDataValue = 7; PropRefValue propRefValue = 8; }
 message VariableData { VariableAnyValue value = 1; VariableDataType dataType = 2; VariableResolvedDataType resolvedDataType = 3; }
 message Paint {
   PaintType type = 1; Color color = 2; float opacity = 3; bool visible = 4; Image image = 5; BlendMode blendMode = 6;
@@ -64,6 +69,16 @@ message FontName { string family = 1; string style = 2; string postscript = 3; }
 message TextLineData { string lineType = 1; uint styleId = 2; uint indentationLevel = 3; string sourceDirectionality = 4; uint listStartOffset = 5; bool isFirstLineOfList = 6; }
 message TextData { string characters = 1; TextLineData[] lines = 2; uint[] characterStyleIDs = 3; NodeChange[] styleOverrideTable = 4; }
 message GUIDPath { GUID[] guids = 1; }
+enum WindingRule { NONZERO = 0; ODD = 1; }
+message Path { WindingRule windingRule = 1; uint commandsBlob = 2; }
+message ComponentPropValue { bool boolValue = 1; TextData textValue = 2; GUID guidValue = 3; float floatValue = 4; }
+message InstanceSwapPreferredValue { InstanceSwapPreferredValueType type = 1; string key = 2; }
+message ComponentPropPreferredValues { string[] stringValues = 1; InstanceSwapPreferredValue[] instanceSwapValues = 2; }
+message ComponentPropDef { GUID id = 1; string name = 2; ComponentPropValue initialValue = 3; string sortPosition = 4; GUID parentPropDefId = 5; ComponentPropType type = 6; bool isDeleted = 7; ComponentPropPreferredValues preferredValues = 8; VariableData varValue = 9; string description = 10; }
+message ComponentPropAssignment { GUID defID = 1; ComponentPropValue value = 2; VariableData varValue = 3; }
+message ComponentPropRef { uint nodeField = 1; GUID defID = 2; string zombieFallbackName = 3; ComponentPropNodeField componentPropNodeField = 4; bool isDeleted = 5; }
+message VariantPropSpec { GUID propDefId = 1; string value = 2; }
+message StateGroupPropertyValueOrder { string property = 1; string[] values = 2; }
 message SymbolData { GUID symbolID = 1; NodeChange[] symbolOverrides = 2; float uniformScaleFactor = 3; }
 message OptionalVector { Vector value = 1; }
 message VariableSetID { GUID guid = 1; AssetRef assetRef = 2; }
@@ -94,6 +109,10 @@ message NodeChange {
   VariableDataValues variableDataValues = 60; VariableDataMap variableConsumptionMap = 61; bool isPublishable = 62;
   bool isCollectionExtendable = 63; CodeSyntaxMap codeSyntax = 64; GUIDPath guidPath = 65; bool backgroundEnabled = 66;
   float backgroundOpacity = 67; bool mask = 68; uint styleID = 69;
+  bool isStateGroup = 70; StateGroupPropertyValueOrder[] stateGroupPropertyValueOrders = 71; ComponentPropDef[] componentPropDefs = 72;
+  ComponentPropRef[] componentPropRefs = 73; VariantPropSpec[] variantPropSpecs = 74; ComponentPropAssignment[] componentPropAssignments = 75;
+  VariableDataMap parameterConsumptionMap = 76; GUID overriddenSymbolID = 77; bool isSymbolPublishable = 78; string componentKey = 79;
+  Path[] fillGeometry = 80; Path[] strokeGeometry = 81; NodeChange[] derivedSymbolData = 82;
 }
 message Blob { byte[] bytes = 1; }
 message Message { MessageType type = 1; NodeChange[] nodeChanges = 2; Blob[] blobs = 3; }

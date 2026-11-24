@@ -147,6 +147,8 @@ export class EditSession {
   markDirty(id: string): void {
     this.dirty.add(id);
     this.changed = true;
+    // Expanded instance content and cached children may depend on what changed.
+    this.doc.invalidateScenes();
   }
 
   markText(id: string): void {
@@ -212,9 +214,15 @@ export class EditSession {
       }
       let widthChanged = false;
       for (const top of tops.values()) {
-        const { boxes } = computeLayout(top, { dirty: dirtyScene });
+        const { boxes } = computeLayout(top, {
+          dirty: dirtyScene,
+          measure: (n) => this.measureSublayer(n, dirtyScene),
+        });
         for (const [s, b] of boxes) {
-          if (s.isInstanceSublayer) continue;
+          if (s.isInstanceSublayer) {
+            this.writeDerived(s, b, dirtyScene);
+            continue;
+          }
           const raw = this.doc.nodes.get(s.id);
           if (!raw) continue;
           const t = raw.transform;
@@ -239,9 +247,85 @@ export class EditSession {
         if (n?.type === 'TEXT' && n.textAutoResize === 'HEIGHT') this.measure(n);
       }
     }
+    // 3. Component sets fit their variants (when they have no auto layout of their own).
+    const sets = new Set<NodeChange>();
+    for (const id of this.dirty) {
+      for (
+        let n = this.doc.nodes.get(id);
+        n;
+        n = n.parentIndex ? this.doc.nodes.get(guidToString(n.parentIndex.guid)) : undefined
+      ) {
+        if (n.type === 'FRAME' && n.isStateGroup && !stackProps(n)) sets.add(n);
+        if (!n.parentIndex) break;
+      }
+    }
+    for (const set of sets) {
+      const kids = this.doc.rawChildren(guidToString(set.guid)).filter((c) => c.visible !== false);
+      if (!kids.length || !set.size) continue;
+      const w = Math.max(...kids.map((c) => (c.transform?.m02 ?? 0) + (c.size?.x ?? 0)));
+      const h = Math.max(...kids.map((c) => (c.transform?.m12 ?? 0) + (c.size?.y ?? 0)));
+      if (Math.abs(w - set.size.x) > 1e-3 || Math.abs(h - set.size.y) > 1e-3) {
+        set.size = { x: w, y: h };
+        this.invalidateGeometry(set);
+      }
+    }
     this.doc.reindex();
     this.dirty.clear();
     this.dirtyText.clear();
+  }
+
+  /** True if `s` sits inside an instance that was edited in this session. */
+  private inDirtyInstance(s: SceneNode, dirty: Set<SceneNode>): boolean {
+    const root = s.instanceContext?.root;
+    if (!root) return false;
+    for (const d of dirty) if (d.id === root.id) return true;
+    return false;
+  }
+
+  /**
+   * Size of a text layer inside an edited instance whose text no longer matches Figma's stored
+   * layout (no derivedTextData): measured with installed fonts.
+   */
+  private measureSublayer(n: SceneNode, dirty: Set<SceneNode>): { w: number; h: number } | undefined {
+    if (n.figType !== 'TEXT' || !n.isInstanceSublayer || n.data.derivedTextData) return undefined;
+    if (!this.inDirtyInstance(n, dirty)) return undefined;
+    const copy = { ...n.data, size: { ...(n.data.size ?? { x: 0, y: 0 }) } };
+    this.measure(copy);
+    return { w: copy.size.x, h: copy.size.y };
+  }
+
+  /**
+   * Stores the laid-out size/position of a layer inside an edited instance in the instance's
+   * derivedSymbolData, which is where Figma keeps per-instance layout results.
+   */
+  private writeDerived(
+    s: SceneNode,
+    b: { x: number; y: number; w: number; h: number },
+    dirty: Set<SceneNode>,
+  ): void {
+    if (!this.inDirtyInstance(s, dirty)) return;
+    const ctx = s.instanceContext!;
+    const rootRaw = this.doc.nodes.get(ctx.root.id);
+    if (!rootRaw || ctx.root.isInstanceSublayer) return;
+    const t = s.relativeTransform;
+    const sizeChanged = Math.abs(s.width - b.w) > 1e-3 || Math.abs(s.height - b.h) > 1e-3;
+    const posChanged = Math.abs(t.m02 - b.x) > 1e-3 || Math.abs(t.m12 - b.y) > 1e-3;
+    if (!sizeChanged && !posChanged) return;
+    const path = [...ctx.path, overrideId(s.data)];
+    const key = path.map(guidToString).join('/');
+    const list: any[] = (rootRaw.derivedSymbolData ??= []);
+    let entry = list.find((x) => (x.guidPath?.guids ?? []).map(guidToString).join('/') === key);
+    if (!entry) {
+      entry = { guidPath: { guids: path.map((g) => ({ ...g })) } };
+      list.push(entry);
+    }
+    entry.size = { x: b.w, y: b.h };
+    entry.transform = { ...t, m02: b.x, m12: b.y };
+    if (sizeChanged && s.figType !== 'TEXT') {
+      // Stored outlines are for the old size; an empty list makes renderers use the shape itself.
+      entry.fillGeometry = [];
+      entry.strokeGeometry = [];
+    }
   }
 
   /** Measures a text node with installed fonts and updates its size per textAutoResize. */

@@ -133,6 +133,8 @@ export interface LayoutOptions {
    * re-measured from their content, except instances, which keep their stored size unless dirty.
    */
   dirty?: Set<SceneNode>;
+  /** Intrinsic size for leaves whose stored size is stale (e.g. edited text inside an instance). */
+  measure?: (n: SceneNode) => Size | undefined;
 }
 
 export interface LayoutResult {
@@ -158,6 +160,8 @@ export function computeLayout(root: SceneNode, opts: LayoutOptions = {}): Layout
 
   // Rotated children take up their rotated bounding box (e.g. a vertical LINE: width 0).
   const stored = (n: SceneNode): Size => {
+    const m = opts.measure?.(n);
+    if (m) return m;
     const t = n.relativeTransform;
     if (Math.abs(t.m01) < 1e-6 && Math.abs(t.m10) < 1e-6) return { w: n.width, h: n.height };
     const b = transformedBounds({ ...t, m02: 0, m12: 0 }, n.width, n.height);

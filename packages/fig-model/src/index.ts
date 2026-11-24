@@ -7,3 +7,4 @@ export * from './layout.js';
 export * from './inspect.js';
 export * from './fonts.js';
 export * from './edit.js';
+export * from './components.js';
