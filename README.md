@@ -12,7 +12,7 @@ Works on Windows, macOS and Linux.
 
 It also includes a read-only **web viewer** that renders a `.fig` file in the browser the way Figma does, with a page selector, a layer outline and an inspect panel.
 
-> **Status:** early development. Reading works (`whoami`, `get_metadata`, `get_variable_defs`, `get_screenshot`, `search_design_system`, `get_libraries`), and so does the web viewer. Coming next: design context (code) and editing. See [PLAN.md](PLAN.md) for the roadmap.
+> **Status:** early development. All read tools work (`whoami`, `get_metadata`, `get_design_context`, `get_variable_defs`, `get_screenshot`, `search_design_system`, `get_libraries`), and so does the web viewer. Coming next: editing (`use_figma`). See [PLAN.md](PLAN.md) for the roadmap.
 
 ## Features
 
@@ -21,8 +21,8 @@ It also includes a read-only **web viewer** that renders a `.fig` file in the br
 - **Library support**: library components, styles and variables that Figma embeds in the export work normally. Components that are really missing are shown as placeholders.
 - **Optional extra tools** (`--extra-tools`, off by default): Figtional-only helpers such as `figtional_find_nodes`. They are off by default so the tool set matches Figma MCP's.
 - **Explicit scope**: one file, a list of files, or a folder of `.fig` files. Nothing else is visible, and files are read-only unless marked writable.
-- **Web viewer**: `figtional serve design.fig` → `http://127.0.0.1:3845`.
-- **Fully local**: no network access, no Figma account needed.
+- **Web viewer**: `figtional serve design.fig` → `http://127.0.0.1:3846`.
+- **Fully local**: no network access, no Figma account needed. `get_design_context` serves images and vectors from a local asset server on `http://localhost:3845` (like Figma's desktop MCP server).
 
 ## Getting a `.fig` file
 
@@ -96,7 +96,7 @@ Tools accept Figma-style URLs as well as `fileKey` + `nodeId`:
 ### Web viewer
 
 ```bash
-npx figtional serve ./designs/App.fig            # http://127.0.0.1:3845
+npx figtional serve ./designs/App.fig            # http://127.0.0.1:3846
 npx figtional serve --port 4000 --watch ./designs/App.fig
 npx figtional serve ./designs/                   # folder → file switcher in the top bar
 ```

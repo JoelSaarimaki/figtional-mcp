@@ -22,7 +22,7 @@ Usage:
   figtional dump <file.fig>                         Summarise a file (pages, node counts, format)
   figtional inspect <file.fig> <nodeId> [--json]    Show a node (XML outline, or decoded JSON)
   figtional validate <file.fig>                     Check that the file decodes and round-trips
-  figtional serve [options] <file.fig | folder>...  Read-only web viewer on http://127.0.0.1:3845
+  figtional serve [options] <file.fig | folder>...  Read-only web viewer on http://127.0.0.1:3846
 
 MCP options:
   --writable            Allow edits to every source (read-only by default)
@@ -32,7 +32,7 @@ MCP options:
   --extra-tools[=a,b]   Enable Figtional-only tools (all, or a comma-separated list):
                         ${EXTRA_TOOLS.join(', ')}
 
-Serve options: --port <n> (default 3845), --recursive, --config <file>. The viewer reloads
+Serve options: --port <n> (default 3846), --recursive, --config <file>. The viewer reloads
 automatically when a file changes on disk.
 
 A folder source gives access to every .fig file directly inside it (and below it with --recursive).
@@ -156,10 +156,10 @@ async function serve(args: string[]): Promise<number | undefined> {
   const server = createViewerServer(workspace, port ? { port } : {});
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
-    server.listen(port ?? 3845, () => resolve());
+    server.listen(port ?? 3846, () => resolve());
   });
   const addr = server.address();
-  const actualPort = typeof addr === 'object' && addr ? addr.port : (port ?? 3845);
+  const actualPort = typeof addr === 'object' && addr ? addr.port : (port ?? 3846);
   process.stdout.write(
     `Figtional viewer: http://127.0.0.1:${actualPort}/  (${files.length} file(s); read-only; Ctrl+C to stop)\n`,
   );

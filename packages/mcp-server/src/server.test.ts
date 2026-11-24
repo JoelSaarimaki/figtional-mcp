@@ -234,12 +234,15 @@ describe('MCP tools', () => {
     expect(empty.content[0].text).toBe('invalid nodeId');
   });
 
-  it('unimplemented tools say it is a Figtional limitation', async () => {
+  it('get_design_context returns code for layers and refuses pages like Figma', async () => {
     const ws = new Workspace({ sources: [{ file: put('a.fig') }] });
     const { call } = await connect(ws);
-    const r = await call('get_design_context', { fileKey: 'a', nodeId: '1:2' });
-    expect(r.isError).toBe(true);
-    expect(r.text).toMatch(/^NotSupportedInFigtional: .*limitation of Figtional/);
+    const r = await call('get_design_context', { fileKey: 'a', nodeId: '1:2', clientFrameworks: 'react' });
+    expect(r.isError).toBe(false);
+    expect(r.text).toContain('data-node-id="1:2"');
+    const page = await call('get_design_context', { fileKey: 'a', nodeId: '0:1' });
+    expect(page.isError).toBe(true);
+    expect(page.text).toMatch(/^You currently have nothing selected/);
   });
 
   it('extra tools: find nodes and node JSON', async () => {

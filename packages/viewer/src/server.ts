@@ -320,7 +320,7 @@ export function createViewerServer(workspace: Workspace, opts: ViewerOptions = {
   const server = createServer((req, res) => void handle(req, res));
   const listen = server.listen.bind(server);
   // Force the bind address: the viewer must never be reachable from other machines.
-  (server as any).listen = (port?: number, cb?: () => void) => listen(port ?? opts.port ?? 3845, host, cb);
+  (server as any).listen = (port?: number, cb?: () => void) => listen(port ?? opts.port ?? 3846, host, cb);
   return server;
 }
 

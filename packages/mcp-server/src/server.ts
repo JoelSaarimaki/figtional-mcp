@@ -15,6 +15,8 @@ import {
 import { z } from 'zod';
 import { embeddedLibraries, searchDesignSystem } from './design-system.js';
 import { metadataXml } from './metadata.js';
+import { AssetServer } from './assets.js';
+import { codeTarget, designContextText } from './design-context.js';
 import { renderPng } from '@figtional/fig-render';
 import { type FileEntry, FileNotAvailableError, type Workspace, parseFigmaUrl } from './workspace.js';
 
@@ -36,6 +38,8 @@ export type ExtraTool = (typeof EXTRA_TOOLS)[number];
 export interface ServerOptions {
   /** true = all extras, or a list of extra tool names. */
   extraTools?: boolean | string[];
+  /** Asset server for get_design_context (default: one on localhost:3845, or a free port). */
+  assets?: AssetServer;
 }
 
 /** An error the agent sees as a tool error (isError: true). */
@@ -83,6 +87,7 @@ export function createServer(workspace: Workspace, options: ServerOptions = {}):
   const extras = new Set<string>(
     options.extraTools === true ? EXTRA_TOOLS : Array.isArray(options.extraTools) ? options.extraTools : [],
   );
+  const assets = options.assets ?? new AssetServer();
   const server = new McpServer(
     { name: SERVER_NAME, version: SERVER_VERSION },
     {
@@ -310,22 +315,33 @@ export function createServer(workspace: Workspace, options: ServerOptions = {}):
       }),
   );
 
-  // ------------------------------------------- not yet implemented (M7)
+  // ----------------------------------------------------- get_design_context
   server.registerTool(
     'get_design_context',
     {
       title: 'Get design context',
       description:
-        'Get design context (reference code, assets, variables) for a node. Not available yet in this Figtional version.',
+        'Generate UI code for a node (React + Tailwind by default; HTML/CSS when clientFrameworks/clientLanguages ask for it), with asset URLs and the variables and styles it uses. Preferred tool for implementing a design. For large nodes, call get_metadata first and then get_design_context on the parts you need.',
       inputSchema: { fileKey: fileKeyParam, nodeId: nodeIdParam.optional(), ...clientParams },
       annotations: { readOnlyHint: true },
     },
-    ({ fileKey }) =>
-      run(() => {
-        open(fileKey);
-        throw notSupported(
-          'get_design_context is not implemented yet',
-          'It is planned (PLAN.md milestone M7). Use get_metadata, get_variable_defs and get_screenshot meanwhile.',
+    ({ fileKey, nodeId, clientLanguages, clientFrameworks }) =>
+      run(async () => {
+        const { doc, entry, nodeId: id } = open(fileKey, nodeId);
+        const node = getNode(doc, id, entry);
+        if (node.figType === 'CANVAS' || node.figType === 'DOCUMENT') {
+          throw new ToolError(
+            'You currently have nothing selected. get_design_context needs a layer (frame, component, group…), not a page. Use get_metadata on the page to find the layer ids.',
+          );
+        }
+        return text(
+          await designContextText(
+            doc,
+            entry.key,
+            node,
+            assets,
+            codeTarget(clientLanguages, clientFrameworks),
+          ),
         );
       }),
   );

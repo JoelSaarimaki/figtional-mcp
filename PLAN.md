@@ -28,7 +28,8 @@ The files must round-trip: a `.fig` written by Figtional must open in Figma with
 | M5 `fig-render` | **Done** (first version): SVG/PNG rendering from stored geometry and glyph outlines; fills (solid, linear/radial gradients, images in all scale modes), strokes with alignment, effects (drop/inner shadow, layer blur), clipping, masks, blend modes, mixed-style text, decorations, missing-component placeholders, font fallback for edited text. `get_screenshot` works (PNG, longest side ≤ 2048 px). Render-diff harness against all Figma exports: 21 of 23 within 2% (see `docs/fig-format.md` §5b). Not yet: background blur, angular/diamond gradients (drawn as radial), auto-layout recomputation for edited content. |
 | Auto layout engine (part of M8, done early) | **Done**: `computeLayout` in `fig-model` (hug/fill/fixed, padding incl. borders, spacing modes, alignment, wrap, min/max, absolute children, dirty-set re-measuring). Verified against Figma's stored layouts (see `docs/fig-format.md` §4.6). Still needed for edits: text measurement with installed fonts (new text sizes), and regenerating geometry for resized shapes. |
 | M6 Viewer | **Done** (first version): `figtional serve` with file switcher, page selector, lazy layer tree, pan/zoom canvas (each top-level item rendered as its own PNG, loaded when visible, sharper when zoomed), click / Ctrl-click selection, inspect panel (position, auto layout, layout-in-parent, appearance, fills/strokes/effects with variables, text, component properties, styles, prototype), File tab (meta, format, variables per mode, styles), prototype connections, Present mode (flows, navigate, overlays with position, close/back, hotspots), auto-reload when the file changes, deep links (`?file=&page=&node-id=&proto=1&present=1`). Loopback only, Host-header check, GET only. Known: very large library-heavy frames take ~2 s to render. |
-| M7 to M10 | Not started. Next: **M7** (`get_design_context`). |
+| M7 `get_design_context` | **Done** (first version): React + Tailwind (default) or HTML/CSS (`clientFrameworks`/`clientLanguages`), Figma-style arbitrary values, `data-name`/`data-node-id`, `var(--name, fallback)` for bound colours and spacing, mixed-style text as spans, image fills and vector exports served by a local asset server (`http://localhost:3845/assets/<hash>.<ext>`, like Figma's desktop server; another port if 3845 is taken), truncation notice for large nodes, "nothing selected" error for pages, list of used variables/styles. Verified by rendering the generated HTML in a browser and comparing with Figma's export (Responsive example: visually near-identical apart from fonts). Not yet: separate component functions for instances, Code Connect, masks (approximated by clipping). The viewer moved to port 3846. |
+| M8 to M10 | Not started. Next: **M8** (`use_figma` editing). |
 
 ## 2. Key decisions & findings
 
@@ -159,7 +160,7 @@ Mutations must produce Figma-valid node changes: new GUIDs in a fresh `sessionID
 
 ## 6. Web viewer
 
-`figtional serve <sources…> [--port 3845]` → `http://127.0.0.1:3845`
+`figtional serve <sources…> [--port 3846]` → `http://127.0.0.1:3846`
 
 - **Top bar:** file switcher (with several files), page selector (hides `Internal Only Canvas`), zoom controls.
 - **Left panel:** layer outline (tree with type icons, expand/collapse, hidden-node dimming), the same as Figma's Layers panel.
