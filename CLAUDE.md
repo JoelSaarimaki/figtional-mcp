@@ -19,8 +19,8 @@ packages/fig-render   # node → SVG / PNG (resvg); render-diff tests against Fi
 packages/mcp-server   # MCP tools (Figma-compatible names + figtional_* extras), Workspace (source scoping)
 packages/viewer       # read-only web viewer: src/server.ts (API) + static/ (plain JS client, no build step)
 packages/cli          # `figtional` CLI: mcp | serve | dump | inspect | validate
-test/                 # shared test helpers: synthetic .fig builder, References/ paths
-References/           # real Figma exports + screenshots + PNG/SVG exports (local only, git-ignored; free to read)
+test/                 # shared test helpers: synthetic .fig builder, references/ paths
+references/           # real Figma exports + screenshots + PNG/SVG exports (local only, git-ignored; free to read)
 docs/                 # fig-format.md (format notes), figma-mcp-tools.md (official tool schema snapshot), compat-log.md
 ```
 
@@ -29,17 +29,17 @@ docs/                 # fig-format.md (format notes), figma-mcp-tools.md (offici
 ```bash
 npm install
 npm run build           # tsc -b (all packages)
-npm test                # vitest, runs against sources; reference-file tests skip if References/ is missing
+npm test                # vitest, runs against sources; reference-file tests skip if references/ is missing
 npm run lint            # eslint
 npm run format          # prettier (code only; Markdown is not reformatted)
-node packages/cli/dist/bin.js dump "References/Playground/Playground.fig"
-node packages/cli/dist/bin.js mcp --recursive References     # MCP over stdio (logs go to stderr)
+node packages/cli/dist/bin.js dump "references/Playground/Playground.fig"
+node packages/cli/dist/bin.js mcp --recursive references     # MCP over stdio (logs go to stderr)
 ```
 Set `FIGTIONAL_BIG_TESTS=1` for tests that use the 270 MB file. For one-off format investigations, a throwaway `*.test.ts` that decodes a reference file and `console.log`s is the quickest route (`npx vitest run <file> --reporter=verbose`); delete it afterwards.
 
 Cross-platform: the code must work on Windows, macOS and Linux. Use `node:path`/`node:fs` and no shell-specific npm scripts. Remember that file systems differ in case sensitivity. The development machine is Windows (PowerShell / Git Bash), and its paths contain non-ASCII characters (`ä`) and spaces, so always quote them.
 
-## The .fig format (verified against References/)
+## The .fig format (verified against references/)
 
 **Full notes: [docs/fig-format.md](docs/fig-format.md).** Read it before touching format, model or render code, and **update it** whenever you find out something new about the format (mark each claim as verified or assumed). The summary below covers the essentials.
 
@@ -62,10 +62,10 @@ Cross-platform: the code must work on Windows, macOS and Linux. Use `node:path`/
 2. **Preserve unknown data.** Fields and node types we don't understand must survive a round-trip untouched. The model wraps raw node changes and does not convert them into a lossy DTO.
 3. **Access control is the core feature.** Sources are one file, several files, or a folder (`*.fig`, non-recursive unless `recursive`). Never add a tool, endpoint or option that lists, searches or opens anything outside the configured sources. Resolve folder contents with `realpath` and reject symlink/`..` escapes. Files are read-only unless marked writable. The viewer binds to `127.0.0.1` only. Do not add network calls. See PLAN.md §4. Source scoping is the **only** privacy feature: don't add others (image toggles, redaction, …) unless asked.
 4. **Mirror Figma MCP** for Figma-named tools (names, params, output formats, and limits where practical), using `docs/figma-mcp-tools.md` as the reference. Anything else goes under the `figtional_` prefix and is **off by default** (`--extra-tools`). Errors for unsupported features must say they are *Figtional* limitations. `use_figma` saves after every successful call (no save step), as Figma applies changes live. No textual change reports: the viewer is how changes are reviewed.
-5. **Writes are atomic** (temp file + rename) and keep a `.bak` copy. Never modify files in `References/`. Write test outputs to a temp dir.
+5. **Writes are atomic** (temp file + rename) and keep a `.bak` copy. Never modify files in `references/`. Write test outputs to a temp dir.
 6. **When Figma has an older and a newer form of the same data, copy what Figma does.** Write the newer form, keep the older fields that are already present in sync, and never strip or migrate them on our own. When unsure, run an edit-and-export experiment in Figma before writing the code (see fig-format.md §4.11 for prototypes).
-7. **Validate compatibility with the references**: every format change needs a round-trip test, and rendering changes should be checked against the PNG/SVG exports and screenshots in `References/`. Changes to the encoder need a manual Figma import check, logged in `docs/compat-log.md`.
-8. `References/` is harmless (a public website's design files, personal projects and Figma demo files). **You may read and decode its contents freely**, without asking. It is **never committed to git**: the useful outputs are the format knowledge in `docs/fig-format.md` and test results. Never modify the originals. Tests that use reference files must skip cleanly when they are missing (for example in CI or a fresh clone).
+7. **Validate compatibility with the references**: every format change needs a round-trip test, and rendering changes should be checked against the PNG/SVG exports and screenshots in `references/`. Changes to the encoder need a manual Figma import check, logged in `docs/compat-log.md`.
+8. `references/` is harmless (a public website's design files, personal projects and Figma demo files). **You may read and decode its contents freely**, without asking. It is **never committed to git**: the useful outputs are the format knowledge in `docs/fig-format.md` and test results. Never modify the originals. Tests that use reference files must skip cleanly when they are missing (for example in CI or a fresh clone).
 9. `Futurice.com UI.fig` is about 270 MB / 17k nodes. Avoid O(n²) tree operations, and don't load all images eagerly.
 
 ## Conventions

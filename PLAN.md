@@ -172,7 +172,7 @@ Mutations must produce Figma-valid node changes: new GUIDs in a fresh `sessionID
 - **Prototype:** list of flows, connection arrows toggle, and a "Present" mode (navigate, overlays, close/back, dissolve/slide transitions, scrolling with fixed elements and preserved scroll position).
 - Read-only. `--watch` reloads on file changes, so it works as a live view while an agent edits. This is the main way to review an agent's changes.
 
-## 7. Fidelity & compatibility strategy (using `References/`)
+## 7. Fidelity & compatibility strategy (using `references/`)
 
 1. **Round-trip test:** `decode → encode` without changes must give a semantically identical message. Ideally the chunks are byte-identical before compression.
 2. **Figma import test (manual gate):** edited and re-encoded files are imported into Figma. They must open with no warnings, and the edits must be visible. Log the results in `docs/compat-log.md`.
@@ -196,7 +196,7 @@ Reading first (M0–M7), then editing (M8).
 
 | # | Milestone | Done when |
 |---|---|---|
-| **M0** | Repo scaffold | npm workspaces, TS, vitest, eslint/prettier, `.gitignore` (incl. `References/`), CI matrix on Windows/macOS/Linux, CONTRIBUTING (LICENSE exists: MIT). |
+| **M0** | Repo scaffold | npm workspaces, TS, vitest, eslint/prettier, `.gitignore` (incl. `references/`), CI matrix on Windows/macOS/Linux, CONTRIBUTING (LICENSE exists: MIT). |
 | **M1** | `fig-format` read | All references decode; `figtional dump`; blob decoders for paths/vector networks. |
 | **M2** | `fig-model` read | Tree, instance resolution with overrides, embedded library assets resolved by key, missing-component placeholders, variables, styles; `figtional inspect`. |
 | **M3** | MCP read tools | `whoami`, `get_metadata`, `get_variable_defs`, `search_design_system`; extras toggle; file/files/folder sources with access enforcement (including tests for symlink escape and `..`); `docs/figma-mcp-tools.md` snapshot; works in Claude Code via `.mcp.json`. |

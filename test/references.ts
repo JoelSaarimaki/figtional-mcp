@@ -1,12 +1,12 @@
 /**
- * Helpers for tests that use the local, git-ignored References/ folder.
+ * Helpers for tests that use the local, git-ignored references/ folder.
  * Tests using these must skip cleanly when a file is missing (CI, fresh clones).
  */
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
-export const REFERENCES_DIR = fileURLToPath(new URL('../References/', import.meta.url));
+export const REFERENCES_DIR = fileURLToPath(new URL('../references/', import.meta.url));
 
 export const REF = {
   playground: join(REFERENCES_DIR, 'Playground', 'Playground.fig'),

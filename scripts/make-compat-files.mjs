@@ -5,7 +5,7 @@
  * docs/compat-log.md.
  *
  *   npm run build
- *   node scripts/make-compat-files.mjs "References/Playground/Playground.fig" compat-out
+ *   node scripts/make-compat-files.mjs "references/Playground/Playground.fig" compat-out
  */
 import { mkdirSync } from 'node:fs';
 import { basename, extname, join, resolve } from 'node:path';

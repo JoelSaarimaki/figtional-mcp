@@ -122,7 +122,7 @@ npx figtional validate App.fig           # format version and round-trip check
 
 ## Development
 
-The format was worked out from real Figma exports kept in a local, git-ignored `References/` folder (`.fig` files plus Figma screenshots and PNG/SVG exports). What we learned is recorded in [docs/fig-format.md](docs/fig-format.md). Tests that need reference files skip when the folder is missing. To run them, put `.fig` exports with matching PNG/SVG frame exports in `References/<project>/`.
+The format was worked out from real Figma exports kept in a local, git-ignored `references/` folder (`.fig` files plus Figma screenshots and PNG/SVG exports). What we learned is recorded in [docs/fig-format.md](docs/fig-format.md). Tests that need reference files skip when the folder is missing. To run them, put `.fig` exports with matching PNG/SVG frame exports in `references/<project>/`.
 
 ## Editing with `use_figma`
 

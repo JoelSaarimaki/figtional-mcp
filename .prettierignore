@@ -1,5 +1,5 @@
 dist/
 node_modules/
-References/
+references/
 package-lock.json
 *.md

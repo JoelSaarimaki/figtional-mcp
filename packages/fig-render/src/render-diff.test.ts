@@ -1,5 +1,5 @@
 /**
- * Render-diff against Figma's own PNG exports in References/ (PLAN.md §7.3). Each exported frame
+ * Render-diff against Figma's own PNG exports in references/ (PLAN.md §7.3). Each exported frame
  * is found by name, rendered at 1×, and compared pixel by pixel. Set FIGTIONAL_RENDER_OUT=<dir> to
  * write our renders and diff images there for inspection.
  */

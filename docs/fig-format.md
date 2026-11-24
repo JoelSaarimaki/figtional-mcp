@@ -1,6 +1,6 @@
 # .fig file format: working notes
 
-A living reference for Figma's `.fig` export format, as observed in the files in `References/`. **Add to this document whenever you learn something new** (field semantics, defaults Figma expects, things that broke an import). Mark each claim as *verified* (seen in the files or confirmed by a Figma import) or *assumed*.
+A living reference for Figma's `.fig` export format, as observed in the files in `references/`. **Add to this document whenever you learn something new** (field semantics, defaults Figma expects, things that broke an import). Mark each claim as *verified* (seen in the files or confirmed by a Figma import) or *assumed*.
 
 Last verified against: 5 reference exports from 2026-11-24, `fig-kiwi` versions **101** and **106**, schemas with 674–675 definitions. All five decode and **re-encode byte-for-byte** with `packages/fig-format` (including the 270 MB Futurice.com UI file).
 
@@ -292,7 +292,7 @@ Plugin API mapping for both generations: `node.reactions[]` (`trigger.type`, `ac
 
 Render-diff results (differing pixels, pixelmatch threshold 0.15) are printed by `packages/fig-render/src/render-diff.test.ts`. On 2026-11-24 the 21 exports of the small references were all ≤ 2% different (most < 0.1%); the remaining differences are anti-aliasing and 1 px shadow edges.
 
-## 6. Reference material in `References/`
+## 6. Reference material in `references/`
 
 | Folder | .fig | Figma screenshots | Figma exports |
 |---|---|---|---|
@@ -330,7 +330,7 @@ Use the project's own packages (in a throwaway vitest file, or after `npm run bu
 import { FigArchive } from '@figtional/fig-format';
 import { FigDocument } from '@figtional/fig-model';
 
-const fig = FigArchive.open('References/Playground/Playground.fig');
+const fig = FigArchive.open('references/Playground/Playground.fig');
 const canvas = fig.decodeCanvas();          // { version, schema, message, messageBytes, … }
 const doc = new FigDocument(canvas, fig);   // scene tree with instances expanded
 console.log(doc.pages.map((p) => p.name), doc.getNodeById('1:4')?.data);

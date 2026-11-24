@@ -21,7 +21,7 @@ Requires Node.js 22.15 or newer (Figtional uses the zstd support in `node:zlib`)
 
 ## Reference files
 
-Real Figma exports are useful for tests but are **not** committed. Put them in a local `References/<project>/` folder (git-ignored). Tests that need them skip automatically when they are missing. If you learn something new about the format, add it to `docs/fig-format.md` and mark it as *verified* or *assumed*.
+Real Figma exports are useful for tests but are **not** committed. Put them in a local `references/<project>/` folder (git-ignored). Tests that need them skip automatically when they are missing. If you learn something new about the format, add it to `docs/fig-format.md` and mark it as *verified* or *assumed*.
 
 ## Pull requests
 
