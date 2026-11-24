@@ -10,7 +10,9 @@ import {
   type SceneNode,
   invert,
   isGroupData,
+  measureText,
   multiply,
+  styleWeight,
 } from '@figtional/fig-model';
 
 export interface RenderOptions {
@@ -371,43 +373,45 @@ function textXml(b: SvgBuilder, n: NodeChange): string {
     }
     return parts.join('');
   }
-  // Fallback: edited/new text without Figma's layout. Simple line layout with installed fonts.
+  // Fallback: edited/new text without Figma's layout: lay it out with installed fonts
+  // (same measurement as fig-model uses for text sizes), drawn by the font, not glyph outlines.
   const chars: string = n.textData?.characters ?? '';
   if (!chars) return '';
   const f = fillFor(0);
   const size = n.fontSize ?? 12;
-  const lh =
-    n.lineHeight?.units === 'PIXELS'
-      ? n.lineHeight.value
-      : n.lineHeight?.units === 'PERCENT'
-        ? (size * n.lineHeight.value) / 100
-        : size * 1.2;
-  const anchor = { CENTER: 'middle', RIGHT: 'end' }[n.textAlignHorizontal as string] ?? 'start';
-  const x = anchor === 'middle' ? w / 2 : anchor === 'end' ? w : 0;
+  const family = n.fontName?.family ?? 'Inter';
   const style = n.fontName?.style ?? 'Regular';
-  const weight = /thin/i.test(style)
-    ? 100
-    : /extra ?light/i.test(style)
-      ? 200
-      : /light/i.test(style)
-        ? 300
-        : /medium/i.test(style)
-          ? 500
-          : /semi ?bold/i.test(style)
-            ? 600
-            : /extra ?bold/i.test(style)
-              ? 800
-              : /black|heavy/i.test(style)
-                ? 900
-                : /bold/i.test(style)
-                  ? 700
-                  : 400;
-  const lines = chars.split('\n');
-  const tspans = lines
-    .map((line, i) => `<tspan x="${fmt(x)}" y="${fmt(lh * i + lh * 0.5 + size * 0.35)}">${esc(line)}</tspan>`)
+  const wrapWidth = n.textAutoResize === 'WIDTH_AND_HEIGHT' ? undefined : w;
+  const m = measureText(
+    chars,
+    { family, style, size, lineHeight: n.lineHeight, letterSpacing: n.letterSpacing },
+    wrapWidth,
+  );
+  const lineH = Math.round(m.lineHeight);
+  const total = lineH * m.lines.length;
+  const vAlign = n.textAlignVertical ?? 'TOP';
+  const top = vAlign === 'CENTER' ? (h - total) / 2 : vAlign === 'BOTTOM' ? h - total : 0;
+  const align = n.textAlignHorizontal ?? 'LEFT';
+  const anchor = align === 'CENTER' ? 'middle' : align === 'RIGHT' ? 'end' : 'start';
+  const x = anchor === 'middle' ? w / 2 : anchor === 'end' ? w : 0;
+  const tspans = m.lines
+    .map((line, i) => `<tspan x="${fmt(x)}" y="${fmt(top + lineH * i + m.ascent)}">${esc(line.text)}</tspan>`)
     .join('');
   b.warnings.add('text without stored layout drawn with installed fonts');
-  return `<text font-family="${esc(n.fontName?.family ?? 'sans-serif')}, sans-serif" font-size="${fmt(size)}" font-weight="${weight}"${/italic/i.test(style) ? ' font-style="italic"' : ''} text-anchor="${anchor}" fill="${f?.fill ?? '#000'}"${f && f.opacity < 1 ? ` fill-opacity="${fmt(f.opacity)}"` : ''}${n.letterSpacing?.value ? ` letter-spacing="${fmt(n.letterSpacing.units === 'PERCENT' ? (size * n.letterSpacing.value) / 100 : n.letterSpacing.value)}"` : ''}${h ? '' : ''}>${tspans}</text>`;
+  const ls = n.letterSpacing?.value
+    ? ` letter-spacing="${fmt(n.letterSpacing.units === 'PIXELS' ? n.letterSpacing.value : (size * n.letterSpacing.value) / 100)}"`
+    : '';
+  const deco =
+    n.textDecoration === 'UNDERLINE'
+      ? ' text-decoration="underline"'
+      : n.textDecoration === 'STRIKETHROUGH'
+        ? ' text-decoration="line-through"'
+        : '';
+  return (
+    `<text font-family="${esc(family)}, sans-serif" font-size="${fmt(size)}" font-weight="${styleWeight(style)}"` +
+    `${/italic/i.test(style) ? ' font-style="italic"' : ''} text-anchor="${anchor}" xml:space="preserve" fill="${f?.fill ?? '#000'}"` +
+    `${f && f.opacity < 1 ? ` fill-opacity="${fmt(f.opacity)}"` : ''}${ls}${deco}>${tspans}</text>`
+  );
 }
 
 function flipY<T extends { type: string }>(c: T): T {

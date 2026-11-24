@@ -5,3 +5,5 @@ export * from './values.js';
 export * from './usage.js';
 export * from './layout.js';
 export * from './inspect.js';
+export * from './fonts.js';
+export * from './edit.js';

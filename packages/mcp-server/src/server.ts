@@ -17,6 +17,7 @@ import { embeddedLibraries, searchDesignSystem } from './design-system.js';
 import { metadataXml } from './metadata.js';
 import { AssetServer } from './assets.js';
 import { codeTarget, designContextText } from './design-context.js';
+import { runUseFigma } from './use-figma.js';
 import { renderPng } from '@figtional/fig-render';
 import { type FileEntry, FileNotAvailableError, type Workspace, parseFigmaUrl } from './workspace.js';
 
@@ -343,6 +344,35 @@ export function createServer(workspace: Workspace, options: ServerOptions = {}):
             codeTarget(clientLanguages, clientFrameworks),
           ),
         );
+      }),
+  );
+
+  // -------------------------------------------------------------- use_figma
+  server.registerTool(
+    'use_figma',
+    {
+      title: 'Use Figma',
+      description:
+        'Run JavaScript against the Figma Plugin API (the `figma` global) in a file, to read or edit it. The code runs inside an async function: use top-level await and `return` a JSON-serialisable value (console output is not returned). Load fonts with figma.loadFontAsync before changing text. Figtional supports a subset of the Plugin API and saves the file after each successful call; a failing call changes nothing.',
+      inputSchema: {
+        fileKey: fileKeyParam,
+        code: z.string().describe('JavaScript to run. Runs in an async function; return a value to see it.'),
+        description: z.string().optional().describe('Short description of what the code does (for logs).'),
+        skillNames: clientParams.skillNames,
+      },
+    },
+    ({ fileKey, code }) =>
+      run(async () => {
+        const entry = workspace.resolve(parseFigmaUrl(fileKey)?.fileKey ?? fileKey);
+        const r = await runUseFigma(workspace, entry, code);
+        const content: CallToolResult['content'] = [{ type: 'text', text: r.text }];
+        for (const img of r.images) {
+          content.push(
+            { type: 'text', text: img.caption },
+            { type: 'image', data: img.data, mimeType: 'image/png' },
+          );
+        }
+        return r.ok ? { content } : { isError: true, content };
       }),
   );
 

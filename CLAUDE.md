@@ -72,6 +72,7 @@ Cross-platform: the code must work on Windows, macOS and Linux. Use `node:path`/
 
 - TypeScript strict, ESM, Node ≥ 22.15 (zstd in `node:zlib`). Tests in vitest next to the source (`*.test.ts`).
 - Use `Playground.fig` (33 nodes) for fast unit tests, and `Responsive example.fig` (534 nodes, modern prototype flow, exports of every frame) and `Prototyping in Figma.fig` (921 nodes, legacy-format prototype with overlays, scroll and device, 14 frame exports) for prototype and first render-diff tests. Use the larger files only for integration and perf tests.
+- Editing goes through `EditSession` (`fig-model/src/edit.ts`): never push to `message.nodeChanges` or change `parentIndex` by hand. Call `commit()` to measure text and re-run auto layout. In the Plugin API layer, mirror Figma's error strings (docs/figma-mcp-tools.md §5.4) and throw `FigtionalUnsupported` for anything not implemented.
 - Fonts: use only installed system fonts, with no bundled fonts. Fall back to a basic sans/serif/mono font when one is missing. Never rewrite a node's `fontName` to the fallback.
 - MIT licence. npm publishing (`figtional`) is planned but not soon.
 - Rendering changes: run `npx vitest run packages/fig-render` (with `FIGTIONAL_RENDER_OUT=<dir>` to get renders + diff images, and `FIGTIONAL_BIG_TESTS=1` for Futurice). Don't loosen thresholds to make a regression pass.

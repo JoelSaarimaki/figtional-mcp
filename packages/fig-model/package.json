@@ -17,6 +17,7 @@
     "dist"
   ],
   "dependencies": {
-    "@figtional/fig-format": "*"
+    "@figtional/fig-format": "*",
+    "fontkit": "^3.0.0"
   }
 }

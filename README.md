@@ -12,7 +12,7 @@ Works on Windows, macOS and Linux.
 
 It also includes a read-only **web viewer** that renders a `.fig` file in the browser the way Figma does, with a page selector, a layer outline and an inspect panel.
 
-> **Status:** early development. All read tools work (`whoami`, `get_metadata`, `get_design_context`, `get_variable_defs`, `get_screenshot`, `search_design_system`, `get_libraries`), and so does the web viewer. Coming next: editing (`use_figma`). See [PLAN.md](PLAN.md) for the roadmap.
+> **Status:** early development. All read tools work (`whoami`, `get_metadata`, `get_design_context`, `get_variable_defs`, `get_screenshot`, `search_design_system`, `get_libraries`), the web viewer works, and `use_figma` supports a first subset of the Plugin API for editing (see Limitations). See [PLAN.md](PLAN.md) for the roadmap.
 
 ## Features
 
@@ -123,13 +123,33 @@ npx figtional validate App.fig           # format version and round-trip check
 
 The format was worked out from real Figma exports kept in a local, git-ignored `References/` folder (`.fig` files plus Figma screenshots and PNG/SVG exports). What we learned is recorded in [docs/fig-format.md](docs/fig-format.md). Tests that need reference files skip when the folder is missing. To run them, put `.fig` exports with matching PNG/SVG frame exports in `References/<project>/`.
 
+## Editing with `use_figma`
+
+Start Figtional with `--writable` (or `"writable": true` per source). The agent then sends Plugin API code, exactly as with Figma MCP:
+
+```js
+await figma.loadFontAsync({ family: "Inter", style: "Semi Bold" });
+const card = figma.createAutoLayout("VERTICAL", { itemSpacing: 12, paddingLeft: 24, paddingRight: 24 });
+const title = figma.createText();
+title.fontName = { family: "Inter", style: "Semi Bold" };
+title.characters = "Hello";
+card.appendChild(title);
+return { id: card.id };
+```
+
+- Each successful call is saved to the file right away (with a `.bak` of the previous version), or to `--out <dir>`.
+- A call that throws changes nothing. Figma can leave partial edits behind; Figtional doesn't.
+- Text is measured with fonts installed on your machine and auto layout is recalculated, so screenshots and the viewer show the result. Figma recalculates text layout itself when you import the file.
+- Supported: creating and editing frames, auto layout, rectangles, ellipses, lines, text, components and instances, pages and variables; text/visibility/fill overrides inside instances; `node.screenshot()`. Unsupported calls fail with `NotSupportedInFigtional: …`.
+
 ## How it works
 
 A `.fig` export is a ZIP archive containing `canvas.fig` (Figma's binary **fig-kiwi** document), `meta.json`, `thumbnail.png` and an `images/` folder. Figtional decodes `canvas.fig` using the kiwi schema embedded in the file itself, builds a document tree, and re-encodes it with the same schema when saving, which keeps it compatible with Figma. See [PLAN.md](PLAN.md) for details.
 
 ## Limitations
 
-- `use_figma` supports a **subset** of the Plugin API. Calls that are not supported fail with a clear `NotSupportedInFigtional` error. That is a Figtional limitation, not necessarily a Figma one. Editing prototypes is not supported yet.
+- `use_figma` supports a **subset** of the Plugin API. Calls that are not supported fail with a clear `NotSupportedInFigtional` error; that is a Figtional limitation, not necessarily a Figma one. Not supported yet: component properties and variants, detaching instances, creating styles, vectors/SVG import, new images, prototype interactions.
+- The `use_figma` sandbox (Node's `vm`) keeps scripts away from `require`, files and the network by convention, but it is not a security boundary. The access boundary is the file scope you start Figtional with.
 - Rendering is visually faithful but not pixel-identical to Figma (some blend modes, effects and text shaping differ).
 - Text that hasn't been edited is drawn exactly as Figma laid it out. Edited or new text uses **fonts installed on your machine**. If a design font is missing, Figtional falls back to a basic sans-serif, serif or monospace font for display, but the file keeps the original font, so Figma shows it correctly after import.
 - No Code Connect, comments, version history or multiplayer. Those live in Figma's cloud, not in `.fig` files.

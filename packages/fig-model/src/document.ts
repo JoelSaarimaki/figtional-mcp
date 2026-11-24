@@ -170,17 +170,16 @@ export class FigDocument {
   private readonly childrenIndex = new Map<string, NodeChange[]>();
   private readonly byKey = new Map<string, NodeChange>();
   private sceneCache = new Map<string, SceneNode>();
-  readonly root: SceneNode;
+  /** The DOCUMENT node. Replaced on reindex(), so don't hold on to SceneNodes across edits. */
+  root!: SceneNode;
 
   constructor(
     readonly canvas: DecodedCanvas,
     readonly archive?: FigArchive,
   ) {
+    if (!this.canvas.message.nodeChanges.some((n) => n.type === 'DOCUMENT'))
+      throw new Error('file has no DOCUMENT node');
     this.reindex();
-    const doc = this.canvas.message.nodeChanges.find((n) => n.type === 'DOCUMENT');
-    if (!doc) throw new Error('file has no DOCUMENT node');
-    this.root = new SceneNode(this, guidToString(doc.guid), doc, undefined);
-    this.sceneCache.set(this.root.id, this.root);
   }
 
   static fromArchive(archive: FigArchive): FigDocument {
@@ -192,7 +191,7 @@ export class FigDocument {
     this.nodes.clear();
     this.childrenIndex.clear();
     this.byKey.clear();
-    this.sceneCache = new Map(this.root ? [[this.root.id, this.root]] : []);
+    this.propDefParentCache = undefined;
     for (const n of this.canvas.message.nodeChanges) {
       if (n.phase === 'REMOVED') continue;
       this.nodes.set(guidToString(n.guid), n);
@@ -211,6 +210,9 @@ export class FigDocument {
         return pa < pb ? -1 : pa > pb ? 1 : 0;
       });
     }
+    const doc = this.canvas.message.nodeChanges.find((n) => n.type === 'DOCUMENT')!;
+    this.root = new SceneNode(this, guidToString(doc.guid), doc, undefined);
+    this.sceneCache = new Map([[this.root.id, this.root]]);
   }
 
   get message() {

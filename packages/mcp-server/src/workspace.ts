@@ -244,6 +244,15 @@ export class Workspace {
     return doc;
   }
 
+  /** Closes and forgets the cached document of a file (e.g. before replacing it on disk). */
+  release(path: string): void {
+    const c = this.cache.get(path);
+    if (c) {
+      c.doc.archive?.close();
+      this.cache.delete(path);
+    }
+  }
+
   close(): void {
     for (const c of this.cache.values()) c.doc.archive?.close();
     this.cache.clear();

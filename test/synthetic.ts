@@ -16,26 +16,84 @@ import {
 const require = createRequire(import.meta.url);
 const kiwi = require('kiwi-schema');
 
+// Field names and enum values follow Figma's schema, so edit code paths behave the same; field
+// numbers are our own. Fields 1–17 were the original synthetic set; edit tests use the rest.
 export const SYNTHETIC_SCHEMA = `
 enum MessageType { NODE_CHANGES = 1; }
-enum NodeType { DOCUMENT = 1; CANVAS = 2; FRAME = 3; TEXT = 4; ROUNDED_RECTANGLE = 5; SYMBOL = 6; INSTANCE = 7; VARIABLE_SET = 8; VARIABLE = 9; }
+enum NodeType { DOCUMENT = 1; CANVAS = 2; FRAME = 3; TEXT = 4; ROUNDED_RECTANGLE = 5; SYMBOL = 6; INSTANCE = 7; VARIABLE_SET = 8; VARIABLE = 9; ELLIPSE = 10; LINE = 11; SECTION = 12; VECTOR = 13; }
 enum NodePhase { CREATED = 0; REMOVED = 1; }
-enum PaintType { SOLID = 0; IMAGE = 1; }
+enum PaintType { SOLID = 0; IMAGE = 1; GRADIENT_LINEAR = 2; GRADIENT_RADIAL = 3; }
+enum BlendMode { PASS_THROUGH = 0; NORMAL = 1; MULTIPLY = 2; }
+enum StrokeAlign { CENTER = 0; INSIDE = 1; OUTSIDE = 2; }
+enum StrokeJoin { MITER = 0; BEVEL = 1; ROUND = 2; }
+enum StackMode { NONE = 0; HORIZONTAL = 1; VERTICAL = 2; GRID = 3; }
+enum StackSize { FIXED = 0; RESIZE_TO_FIT = 1; RESIZE_TO_FIT_WITH_IMPLICIT_SIZE = 2; }
+enum StackJustify { MIN = 0; CENTER = 1; MAX = 2; SPACE_EVENLY = 3; SPACE_BETWEEN = 4; SPACE_AROUND = 5; }
+enum StackAlign { MIN = 0; CENTER = 1; MAX = 2; BASELINE = 3; }
+enum StackCounterAlign { MIN = 0; CENTER = 1; MAX = 2; STRETCH = 3; AUTO = 4; BASELINE = 5; }
+enum StackPositioning { AUTO = 0; ABSOLUTE = 1; }
+enum StackWrap { NO_WRAP = 0; WRAP = 1; }
+enum TextAutoResize { NONE = 0; WIDTH_AND_HEIGHT = 1; HEIGHT = 2; }
+enum TextAlignHorizontal { LEFT = 0; CENTER = 1; RIGHT = 2; JUSTIFIED = 3; }
+enum TextAlignVertical { TOP = 0; CENTER = 1; BOTTOM = 2; }
+enum NumberUnits { RAW = 0; PIXELS = 1; PERCENT = 2; }
+enum EffectType { INNER_SHADOW = 0; DROP_SHADOW = 1; FOREGROUND_BLUR = 2; BACKGROUND_BLUR = 3; LAYER_BLUR = 4; }
+enum VariableResolvedDataType { BOOLEAN = 0; FLOAT = 1; STRING = 2; COLOR = 4; }
+enum VariableDataType { BOOLEAN = 0; FLOAT = 1; STRING = 2; ALIAS = 3; COLOR = 4; }
+enum VariableField { MISSING = 0; CORNER_RADIUS = 1; STACK_SPACING = 5; STACK_PADDING_LEFT = 6; STACK_PADDING_TOP = 7; STACK_PADDING_RIGHT = 8; STACK_PADDING_BOTTOM = 9; VISIBLE = 10; WIDTH = 12; HEIGHT = 13; OPACITY = 31; FONT_SIZE = 32; }
+enum CodeSyntaxPlatform { WEB = 0; ANDROID = 1; iOS = 2; }
 struct GUID { uint sessionID; uint localID; }
 struct Vector { float x; float y; }
 struct Matrix { float m00; float m01; float m02; float m10; float m11; float m12; }
 struct Color { float r; float g; float b; float a; }
+struct Number { float value; NumberUnits units; }
 message ParentIndex { GUID guid = 1; string position = 2; }
 message Image { byte[] hash = 1; string name = 2; }
-message Paint { PaintType type = 1; Color color = 2; float opacity = 3; bool visible = 4; Image image = 5; }
+message ColorStop { Color color = 1; float position = 2; }
+message AssetRef { string key = 1; string version = 2; }
+message VariableID { GUID guid = 1; AssetRef assetRef = 2; }
+message VariableAnyValue { bool boolValue = 1; string textValue = 2; float floatValue = 3; VariableID alias = 4; Color colorValue = 5; }
+message VariableData { VariableAnyValue value = 1; VariableDataType dataType = 2; VariableResolvedDataType resolvedDataType = 3; }
+message Paint {
+  PaintType type = 1; Color color = 2; float opacity = 3; bool visible = 4; Image image = 5; BlendMode blendMode = 6;
+  ColorStop[] stops = 7; Matrix transform = 8; VariableData colorVar = 9; Image imageThumbnail = 10; string imageScaleMode = 11;
+  float scale = 12; float rotation = 13;
+}
+message Effect { EffectType type = 1; Color color = 2; Vector offset = 3; float radius = 4; bool visible = 5; BlendMode blendMode = 6; float spread = 7; bool showShadowBehindNode = 8; }
 message FontName { string family = 1; string style = 2; string postscript = 3; }
-message TextData { string characters = 1; }
-message SymbolData { GUID symbolID = 1; }
+message TextLineData { string lineType = 1; uint styleId = 2; uint indentationLevel = 3; string sourceDirectionality = 4; uint listStartOffset = 5; bool isFirstLineOfList = 6; }
+message TextData { string characters = 1; TextLineData[] lines = 2; uint[] characterStyleIDs = 3; NodeChange[] styleOverrideTable = 4; }
+message GUIDPath { GUID[] guids = 1; }
+message SymbolData { GUID symbolID = 1; NodeChange[] symbolOverrides = 2; float uniformScaleFactor = 3; }
+message OptionalVector { Vector value = 1; }
+message VariableSetID { GUID guid = 1; AssetRef assetRef = 2; }
+message VariableSetMode { GUID id = 1; string name = 2; string sortPosition = 3; }
+message VariableDataValuesEntry { GUID modeID = 1; VariableData variableData = 2; }
+message VariableDataValues { VariableDataValuesEntry[] entries = 1; }
+message VariableDataMapEntry { VariableData variableData = 1; VariableField variableField = 2; }
+message VariableDataMap { VariableDataMapEntry[] entries = 1; }
+message CodeSyntaxMapEntry { CodeSyntaxPlatform platform = 1; string value = 2; }
+message CodeSyntaxMap { CodeSyntaxMapEntry[] entries = 1; }
 message NodeChange {
   GUID guid = 1; NodePhase phase = 2; ParentIndex parentIndex = 3; NodeType type = 4; string name = 5;
   bool visible = 6; float opacity = 7; Vector size = 8; Matrix transform = 9; Paint[] fillPaints = 10;
   float fontSize = 11; FontName fontName = 12; TextData textData = 13; Color backgroundColor = 14;
   bool internalOnly = 15; SymbolData symbolData = 16; string unknownFutureField = 17;
+  float strokeWeight = 18; StrokeAlign strokeAlign = 19; StrokeJoin strokeJoin = 20; Paint[] strokePaints = 21;
+  Effect[] effects = 22; float cornerRadius = 23; bool frameMaskDisabled = 24; BlendMode blendMode = 25;
+  StackMode stackMode = 26; float stackSpacing = 27; float stackHorizontalPadding = 28; float stackVerticalPadding = 29;
+  float stackPaddingRight = 30; float stackPaddingBottom = 31; StackSize stackPrimarySizing = 32; StackSize stackCounterSizing = 33;
+  StackJustify stackPrimaryAlignItems = 34; StackAlign stackCounterAlignItems = 35; float stackChildPrimaryGrow = 36;
+  StackCounterAlign stackChildAlignSelf = 37; StackPositioning stackPositioning = 38; StackWrap stackWrap = 39; float stackCounterSpacing = 40;
+  bool bordersTakeSpace = 41; OptionalVector minSize = 42; OptionalVector maxSize = 43;
+  Number lineHeight = 44; Number letterSpacing = 45; TextAutoResize textAutoResize = 46; TextAlignHorizontal textAlignHorizontal = 47;
+  TextAlignVertical textAlignVertical = 48; bool autoRename = 49; bool locked = 50; string description = 51;
+  bool rectangleCornerRadiiIndependent = 52; float rectangleTopLeftCornerRadius = 53; float rectangleTopRightCornerRadius = 54;
+  float rectangleBottomLeftCornerRadius = 55; float rectangleBottomRightCornerRadius = 56;
+  VariableSetMode[] variableSetModes = 57; VariableSetID variableSetID = 58; VariableResolvedDataType variableResolvedType = 59;
+  VariableDataValues variableDataValues = 60; VariableDataMap variableConsumptionMap = 61; bool isPublishable = 62;
+  bool isCollectionExtendable = 63; CodeSyntaxMap codeSyntax = 64; GUIDPath guidPath = 65; bool backgroundEnabled = 66;
+  float backgroundOpacity = 67; bool mask = 68; uint styleID = 69;
 }
 message Blob { byte[] bytes = 1; }
 message Message { MessageType type = 1; NodeChange[] nodeChanges = 2; Blob[] blobs = 3; }

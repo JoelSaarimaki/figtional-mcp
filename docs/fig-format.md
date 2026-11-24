@@ -154,6 +154,7 @@ The stored `size` and `transform` values already contain the **resolved** layout
 - **Instance sublayers** are not reliable ground truth: Figma stores `derivedSymbolData` only for some sublayers, and the rest keep the component's geometry even when a property hides a sibling (e.g. TTRPG "Statbar"). Figma lays them out at draw time. Hence `computeLayout` keeps an instance's stored size unless it is marked dirty.
 
 ### 4.7 TEXT, verified
+- **Line height** (verified against stored layouts): `{ units: 'RAW', value: v }` = Plugin API `PERCENT` v × 100 % of the font size (RAW 1.5 at 24 px = 36 px); `{ units: 'PERCENT', value: 100 }` = Plugin API `AUTO`, the font's natural line height (`derivedTextData.fontMetaData[].fontLineHeight` × size, e.g. Inter 1.21); `PIXELS` = px. Text box height = lines × round(line height) (41.6 px × 3 lines = 126). Auto-width text is `ceil(advance width)` wide.
 - Style: `fontName { family, style, postscript }`, `fontSize`, `lineHeight { value, units: "PERCENT"|"PIXELS"|"RAW" }`, `letterSpacing`, `textAlignHorizontal`, `textAlignVertical`, `textAutoResize`, `textCase`, `textDecoration…`, `maxLines`, `textTruncation`, `hyperlink`, `styleIdForText`.
 - `textData`: **source of truth**. `characters` plus `lines[]` (list/indent info per line), and style override runs (`characterStyleIDs` + `styleOverrideTable`, *assumed*, to verify on mixed-style text).
 - Editing (verified by Figma import, 2026-11-24): changing `textData.characters` is enough; Figma recomputes the layout on import, whether `derivedTextData` is removed or left stale. Figtional removes it on edit. The layer `name` is not updated automatically in the file: the Plugin API renames layers with `autoRename: true` when their text changes, so our `use_figma` must do the same.
@@ -263,6 +264,12 @@ Plugin API mapping for both generations: `node.reactions[]` (`trigger.type`, `ac
 - Counts in `Futurice.com UI.fig`: 818 SYMBOLs, of which 735 are library copies; 151 style nodes; 9,058 style references and 1,157 `colorVar` aliases, **all found inside the file** (0 missing). `Prototyping in Figma.fig`: 22 `assetRef` style references, all found.
 - **Unexplained (2026-11-24):** in Figma's PNG export of Futurice.com UI "About/L", several sections are dark green, but in the `.fig` their fill is bound to `background/brown-1` (beige in both Light and Dark, with no explicit mode or colour override anywhere above). All texts and images match after the override fixes, so the export probably reflects a newer library state than the file. Keep an eye out for another explanation (for example library variable values being re-resolved at export).
 - Not yet seen: an instance whose component is missing from the file. Expected when a file was exported without its libraries being available. Then the viewer shows a placeholder and `derivedSymbolData` may still hold partial data (*assumed*).
+
+### 4.13 Editing rules (implemented in `fig-model/src/edit.ts` and the Plugin API layer)
+- New nodes get guids in a fresh session (max existing `sessionID` + 1). New variables and collections go on the internal page.
+- New nodes have no `fillGeometry`/`strokeGeometry`/`derivedTextData`; resizing removes them (and an instance's `derivedSymbolData`). Figma recomputes text layout on import (verified, M4); recomputing geometry for new or resized shapes is **assumed** (M8 import check pending).
+- Text inside an instance: if the text node is bound to a component property (`componentPropRefs` / `parameterConsumptionMap` TEXT_DATA), Figtional sets the property value on the instance that owns it (`componentPropAssignments`), because property values take precedence over overrides. Otherwise it writes a `symbolOverrides` entry with the guid path.
+- Plugin API `primaryAxisAlignItems: 'SPACE_BETWEEN'` is written as `SPACE_EVENLY` (the value Figma's own files use for "auto" spacing).
 
 ## 5. Blobs, verified
 
