@@ -1,10 +1,10 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, parse } from 'node:path';
 import { Workspace } from '@figtional/mcp-server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { syntheticFig } from '../../../test/synthetic.js';
-import { parseMcpArgs } from './main.js';
+import { parseMcpArgs, unsafeDefaultFolder } from './main.js';
 
 let dir: string;
 beforeEach(() => {
@@ -20,8 +20,36 @@ afterEach(() => rmSync(dir, { recursive: true, force: true }));
 describe('CLI sources', () => {
   it('serve without arguments uses the current folder recursively, skipping node_modules', () => {
     const { workspace } = parseMcpArgs([], dir, { defaultToCwd: true });
-    expect(workspace.sources).toEqual([{ dir, recursive: true }]);
+    expect(workspace.sources).toEqual([{ dir, recursive: true, limit: { maxDirs: 2000, maxDepth: 8 } }]);
     expect(new Workspace(workspace).listFiles().map((f) => f.key)).toEqual(['sub--nested', 'top']);
+  });
+
+  it('the default scan is bounded and warns when it stops early', () => {
+    let deep = dir;
+    for (let i = 0; i < 10; i++) deep = join(deep, `level${i}`);
+    mkdirSync(deep, { recursive: true });
+    writeFileSync(join(deep, 'too-deep.fig'), syntheticFig());
+    const { workspace } = parseMcpArgs([], dir, { defaultToCwd: true });
+    const ws = new Workspace(workspace);
+    expect(ws.listFiles().map((f) => f.key)).not.toContain(expect.stringContaining('too-deep'));
+    expect(ws.warnings().join('\n')).toMatch(/stopped scanning/);
+    // An explicit folder is taken at its word.
+    const explicit = new Workspace(parseMcpArgs([dir, '--recursive'], dir).workspace);
+    expect(explicit.listFiles().some((f) => f.key.endsWith('too-deep'))).toBe(true);
+  });
+
+  it('refuses to crawl roots, the home folder and system folders by default', () => {
+    const home = join(dir, 'Users', 'me');
+    const env = { WINDIR: join(dir, 'Windows'), ProgramFiles: join(dir, 'Program Files') };
+    expect(unsafeDefaultFolder(parse(dir).root, env, home)).toMatch(/root/);
+    expect(unsafeDefaultFolder(home, env, home)).toMatch(/home folder/);
+    expect(unsafeDefaultFolder(join(dir, 'Users'), env, home)).toMatch(/all user folders/);
+    expect(unsafeDefaultFolder(join(dir, 'Windows', 'System32'), env, home)).toMatch(/system folder/);
+    expect(unsafeDefaultFolder(join(dir, 'Program Files'), env, home)).toMatch(/system folder/);
+    expect(unsafeDefaultFolder(join(home, 'Documents', 'designs'), env, home)).toBeUndefined();
+    expect(() => parseMcpArgs([], parse(dir).root, { defaultToCwd: true })).toThrow(/not scanning/);
+    // Explicit sources are allowed anywhere.
+    expect(() => parseMcpArgs([dir], parse(dir).root, { defaultToCwd: true })).not.toThrow();
   });
 
   it('mcp never guesses its scope', () => {

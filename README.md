@@ -96,7 +96,7 @@ Tools accept Figma-style URLs as well as `fileKey` + `nodeId`:
 ### Web viewer
 
 ```bash
-npx figtional serve                              # every .fig below the current folder
+npx figtional serve                              # every .fig below the current folder (not from C:\, /, your home or system folders)
 npx figtional serve ./designs/App.fig            # http://127.0.0.1:3846
 npx figtional serve --port 4000 --watch ./designs/App.fig
 npx figtional serve ./designs/                   # folder → file switcher in the top bar

@@ -10,7 +10,15 @@ import { FigDocument } from '@figtional/fig-model';
 
 export type SourceConfig =
   | { file: string; key?: string; writable?: boolean }
-  | { dir: string; recursive?: boolean; writable?: boolean };
+  | { dir: string; recursive?: boolean; writable?: boolean; limit?: ScanLimit };
+
+/** Bounds for scanning a folder source (used for implicit scopes such as a bare `figtional serve`). */
+export interface ScanLimit {
+  /** Stop after visiting this many folders. */
+  maxDirs?: number;
+  /** Don't descend deeper than this many levels below the folder. */
+  maxDepth?: number;
+}
 
 export interface WorkspaceOptions {
   sources: SourceConfig[];
@@ -126,6 +134,7 @@ export class Workspace {
     }[] = [];
     const seen = new Set<string>();
     const outDir = this.outDirReal();
+    const scanNotes: string[] = [];
     for (const s of this.options.sources) {
       if ('file' in s) {
         const p = resolve(this.cwd, s.file);
@@ -144,7 +153,13 @@ export class Workspace {
         const root = resolve(this.cwd, s.dir);
         if (!existsSync(root)) continue;
         const rootReal = realpathSync(root);
-        for (const rel of scanFolder(rootReal, s.recursive === true, outDir)) {
+        const scan = scanFolder(rootReal, s.recursive === true, outDir, s.limit);
+        if (scan.truncated) {
+          scanNotes.push(
+            `stopped scanning ${rootReal} after ${s.limit?.maxDirs ?? '∞'} folders / depth ${s.limit?.maxDepth ?? '∞'}; some .fig files may be missing. Pass a more specific folder.`,
+          );
+        }
+        for (const rel of scan.files) {
           const full = join(rootReal, rel);
           let real: string;
           try {
@@ -169,7 +184,7 @@ export class Workspace {
     found.sort((a, b) => Number(!!b.explicitKey) - Number(!!a.explicitKey) || a.path.localeCompare(b.path));
     const used = new Set<string>();
     const entries: FileEntry[] = [];
-    this.collisions = [];
+    this.collisions = [...scanNotes];
     for (const f of found) {
       let key = f.baseKey;
       for (let i = 2; used.has(key); i++) key = `${f.baseKey}-${i}`;
@@ -259,9 +274,22 @@ export class Workspace {
   }
 }
 
-function scanFolder(root: string, recursive: boolean, outDir: string | undefined): string[] {
+function scanFolder(
+  root: string,
+  recursive: boolean,
+  outDir: string | undefined,
+  limit: ScanLimit = {},
+): { files: string[]; truncated: boolean } {
   const out: string[] = [];
-  const walk = (dir: string, rel: string) => {
+  const maxDirs = limit.maxDirs ?? Infinity;
+  const maxDepth = limit.maxDepth ?? Infinity;
+  let dirs = 0;
+  let truncated = false;
+  const walk = (dir: string, rel: string, depth: number) => {
+    if (++dirs > maxDirs) {
+      truncated = true;
+      return;
+    }
     let names: string[];
     try {
       names = readdirSync(dir);
@@ -269,6 +297,7 @@ function scanFolder(root: string, recursive: boolean, outDir: string | undefined
       return;
     }
     for (const name of names.sort()) {
+      if (truncated) return;
       if (name.startsWith('.')) continue; // hidden files and folders, including our own temp files
       if (name === 'node_modules') continue; // never holds designs; can be huge
       const full = join(dir, name);
@@ -280,16 +309,25 @@ function scanFolder(root: string, recursive: boolean, outDir: string | undefined
       }
       if (st.isDirectory()) {
         if (!recursive) continue;
-        const real = realpathSync(full);
+        if (depth >= maxDepth) {
+          truncated = true;
+          continue;
+        }
+        let real: string;
+        try {
+          real = realpathSync(full);
+        } catch {
+          continue;
+        }
         if (outDir && (real === outDir || isInside(outDir, real))) continue;
-        walk(full, join(rel, name));
+        walk(full, join(rel, name), depth + 1);
       } else if (st.isFile() && isFigFile(name)) {
         out.push(join(rel, name));
       }
     }
   };
-  walk(root, '');
-  return out;
+  walk(root, '', 0);
+  return { files: out, truncated };
 }
 
 export interface ParsedFigmaUrl {

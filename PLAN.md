@@ -161,7 +161,7 @@ Mutations must produce Figma-valid node changes: new GUIDs in a fresh `sessionID
 
 ## 6. Web viewer
 
-`figtional serve [sources…] [--port 3846]` → `http://127.0.0.1:3846`. Without sources it serves every `.fig` below the current folder (recursively, skipping hidden folders and `node_modules`), because the viewer is read-only and local. `figtional mcp` never defaults: its scope is always explicit.
+`figtional serve [sources…] [--port 3846]` → `http://127.0.0.1:3846`. Without sources it serves every `.fig` below the current folder (recursively, skipping hidden folders and `node_modules`), because the viewer is read-only and local. Guards for this implicit scope: it refuses drive/filesystem roots, the home folder, the folder holding all user folders and system folders (`%WINDIR%`, Program Files, ProgramData, `/usr`, `/etc`, `/System`, `/Library`, `/Applications`…), and stops after 2,000 folders or 8 levels with a warning. Explicit folders are not limited. `figtional mcp` never defaults: its scope is always explicit.
 
 - **Top bar:** file switcher (with several files), page selector (hides `Internal Only Canvas`), zoom controls.
 - **Left panel:** layer outline (tree with type icons, expand/collapse, hidden-node dimming), the same as Figma's Layers panel.
