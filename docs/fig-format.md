@@ -267,7 +267,7 @@ Plugin API mapping for both generations: `node.reactions[]` (`trigger.type`, `ac
 
 ### 4.13 Editing rules (implemented in `fig-model/src/edit.ts` and the Plugin API layer)
 - New nodes get guids in a fresh session (max existing `sessionID` + 1). New variables and collections go on the internal page.
-- New nodes have no `fillGeometry`/`strokeGeometry`/`derivedTextData`; resizing removes them (and an instance's `derivedSymbolData`). Figma recomputes text layout on import (verified, M4); recomputing geometry for new or resized shapes is **assumed** (M8 import check pending).
+- New nodes have no `fillGeometry`/`strokeGeometry`/`derivedTextData`; resizing removes them (and an instance's `derivedSymbolData`). Figma recomputes text layout on import (verified, M4); Figma also recomputes geometry for new and resized shapes (verified by the M8 import check, 2026-11-24).
 - Text inside an instance: if the text node is bound to a component property (`componentPropRefs` / `parameterConsumptionMap` TEXT_DATA), Figtional sets the property value on the instance that owns it (`componentPropAssignments`), because property values take precedence over overrides. Otherwise it writes a `symbolOverrides` entry with the guid path.
 - Plugin API `primaryAxisAlignItems: 'SPACE_BETWEEN'` is written as `SPACE_EVENLY` (the value Figma's own files use for "auto" spacing).
 

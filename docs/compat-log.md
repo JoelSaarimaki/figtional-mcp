@@ -4,11 +4,13 @@ Results of checks against real Figma: importing files written by Figtional, and 
 
 | Date | Figtional | File | Change | Result in Figma |
 |---|---|---|---|---|
-| 2026-11-24 | 0.1.0 | `compat-out/m8/Responsive-edited.fig` | `use_figma` edits: heading text changed; new local variable collection + COLOR variable; new auto-layout card (fill bound to the variable, corner radius, two text layers with fill width, nested auto-layout button); no `fillGeometry` on new nodes | **Pending**: import into Figma and check that the card, the variable binding and the new text appear and that nothing is reported as broken. |
+| 2026-11-24 | 0.1.0 | `compat-out/m8/Responsive-edited.fig` | `use_figma` edits: heading text changed; new local variable collection + COLOR variable; new auto-layout card (fill bound to the variable, corner radius, two text layers with fill width, nested auto-layout button); no `fillGeometry` on new nodes | **OK**: imported without warnings; heading changed; card, wrapped text and button appear with correct shapes; "Figtional tokens" collection exists and the card fill is bound to `accent/primary`. (The card overlapped "Explore · Tablet" only because the test script placed it there.) |
 | 2026-11-24 | 0.1.0 (uncommitted) | `Playground.text-stale.fig` | Text of TEXT `1:4` changed to "FIGTIONAL TEST"; old `derivedTextData` kept | **OK**: imported; canvas shows "FIGTIONAL TEST"; no visible problems from the stale layout data. |
 | 2026-11-24 | 0.1.0 (uncommitted) | `Playground.text-stripped.fig` | Same text change; `derivedTextData` removed | **OK**: imported; canvas shows "FIGTIONAL TEST", so Figma recomputes text layout itself. The layer name stayed "RESET AND RETURN…" because only the text was changed (see note). |
 | 2026-11-24 | 0.1.0 (uncommitted) | `Playground.color.fig` | Solid fill of FRAME `1:3` set to red | **OK**: imported; that frame is red, nothing else changed. |
 | 2026-11-24 | 0.1.0 (uncommitted) | `Playground.roundtrip.fig` | None (decode + re-encode, raw-copied images, our ZIP writer) | **OK**: imported; identical to the original. |
+
+**Conclusions (M8 import check, 2026-11-24):** Figma recomputes geometry for new and resized nodes that have no `fillGeometry`/`strokeGeometry`, accepts new nodes in a fresh session id, new local variable collections/variables on the internal page, and paint bindings to them (`colorVar` alias by guid).
 
 **Conclusions (M4 gate passed):**
 - Figma imports archives written by Figtional: our ZIP layout (sizes in local headers, no data descriptors), raw-copied images, re-encoded zstd message and unchanged schema chunk.
