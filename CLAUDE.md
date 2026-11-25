@@ -16,7 +16,7 @@ Read [PLAN.md](PLAN.md) before starting any milestone, and keep it up to date (t
 packages/fig-format   # .fig zip + fig-kiwi + kiwi decode/encode, blob codecs (pure, no policy)
 packages/fig-model    # document tree, instances, variables, auto layout (layout.ts), editing (edit.ts), components (components.ts), fonts, SVG paths/import (vector-path.ts, svg-import.ts)
 packages/fig-render   # node → SVG / PNG (resvg); render-diff tests against Figma exports
-packages/mcp-server   # MCP tools (Figma-compatible names + figtional_* extras), Workspace (source scoping), use_figma + Plugin API subset (plugin-api.ts, plugin-styles.ts), asset server
+packages/mcp-server   # MCP tools (Figma-compatible names + figtional_* extras), Workspace (source scoping), use_figma + Plugin API subset (plugin-api.ts builds `figma`; node members in node-*.ts, styles, variables, queries and helpers in plugin-*.ts), asset server
 packages/viewer       # read-only web viewer: src/server.ts (API) + static/ (plain JS client, no build step)
 packages/cli          # `figtional` CLI: setup | mcp | serve | dump | inspect | validate
 test/                 # shared test helpers: synthetic .fig builder, references/ paths
