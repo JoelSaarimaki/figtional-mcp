@@ -12,6 +12,7 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 - `use_figma`: boolean operations (`figma.union`, `subtract`, `intersect`, `exclude`) and `figma.flatten`, plus `booleanOperation` on boolean nodes. Screenshots and the viewer draw the results; Figma recomputes their exact outlines on import.
 - `use_figma`: `node.exportAsync()` as PNG (with `SCALE`, `WIDTH` or `HEIGHT` constraints), `SVG` or `SVG_STRING`, and `node.getCSSAsync()` with the same CSS rules as `get_design_context`. JPG and PDF export are refused as Figtional limitations.
 - `use_figma`: `strokeCap`, `cornerSmoothing`, `layoutGrids` on frames and grid styles, `textTruncation` and `maxLines` (measured and drawn with an ellipsis), plugin data (`setPluginData`, `setSharedPluginData` and their getters and key lists), instance `overrides` and `resetOverrides()`, and setting `mainComponent`.
+- `use_figma`: `figma.createPolygon()` and `figma.createStar()` with `pointCount` and `innerRadius`, and `arcData` on ellipses (arcs, pie slices, rings), drawn by the viewer and screenshots.
 
 ## [0.2.1]
 

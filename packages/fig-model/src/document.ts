@@ -16,6 +16,7 @@ export const PLUGIN_TYPE: Record<string, string> = {
   CANVAS: 'PAGE',
   SYMBOL: 'COMPONENT',
   ROUNDED_RECTANGLE: 'RECTANGLE',
+  REGULAR_POLYGON: 'POLYGON',
 };
 
 export const INTERNAL_PAGE_NAME = 'Internal Only Canvas';

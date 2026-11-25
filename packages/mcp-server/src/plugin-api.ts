@@ -823,6 +823,8 @@ export function createFigmaApi(ctx: ApiContext) {
         SYMBOL: 'Component',
         SECTION: 'Section',
         GROUP: 'Group',
+        REGULAR_POLYGON: 'Polygon',
+        STAR: 'Star',
       }[type] ?? type;
     const existing =
       type === 'GROUP'
@@ -1060,6 +1062,12 @@ export function createFigmaApi(ctx: ApiContext) {
     },
     createEllipse() {
       return create('ELLIPSE', { fillPaints: [structuredClone(GREY)] });
+    },
+    createPolygon() {
+      return create('REGULAR_POLYGON', { count: 3, fillPaints: [structuredClone(GREY)] });
+    },
+    createStar() {
+      return create('STAR', { count: 5, starInnerScale: 0.382, fillPaints: [structuredClone(GREY)] });
     },
     createLine() {
       return create('LINE', { size: { x: 100, y: 0 }, strokePaints: [structuredClone(BLACK)] });

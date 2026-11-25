@@ -299,6 +299,13 @@ function shapePaths(b: SvgBuilder, n: NodeChange): { d: string; rule: string }[]
       rule: r.windingRule === 'ODD' ? 'evenodd' : 'nonzero',
     }));
   }
+  // Shapes Figtional created without geometry: arcs, polygons and stars from their parameters.
+  if ((n.type === 'ELLIPSE' && n.arcData) || n.type === 'REGULAR_POLYGON' || n.type === 'STAR') {
+    return outlineOf(b.doc, n).map((o) => ({
+      d: subpathsToPathData(o.paths),
+      rule: o.rule === 'ODD' ? 'evenodd' : 'nonzero',
+    }));
+  }
   if (n.type === 'ELLIPSE') return [{ d: ellipsePath(w, h), rule: 'nonzero' }];
   if (['FRAME', 'SYMBOL', 'INSTANCE', 'ROUNDED_RECTANGLE', 'RECTANGLE', 'SECTION'].includes(n.type ?? '')) {
     return w > 0 && h > 0 ? [{ d: rectPath(n, w, h), rule: 'nonzero' }] : [];
