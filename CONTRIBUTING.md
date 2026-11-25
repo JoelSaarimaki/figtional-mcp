@@ -42,6 +42,19 @@ A release is the merge of `development` into `main`:
 4. Tag the merge on `main` and push the tag: `git tag -a vX.Y.Z -m "Figtional X.Y.Z"` then `git push origin main vX.Y.Z`. The tag starts the **Release** workflow (`.github/workflows/release.yml`): it builds the downloads, smoke-tests the zip on Windows, macOS and Linux (x64 and ARM, Node.js 22.15.0 and 24), and publishes a GitHub release with the changelog section as notes. Check that it went green.
 5. Fast-forward `development` to `main`: `git checkout development && git merge --ff-only main && git push`.
 
+#### With GitHub Desktop
+
+The same steps without the command line (step 1 still needs `npm run release` in a terminal: **Repository → Open in Command Prompt** or **Open in Terminal**):
+
+- **Step 2:** commit `Release X.Y.Z` in the **Changes** tab, then click **Push origin**.
+- **Step 3:** **Branch → Create Pull Request** opens GitHub in the browser. Set the base branch to `main`, wait for the checks, and merge with **Create a merge commit**.
+- **Step 4:** switch to `main` and click **Fetch origin**, then **Pull origin**, so the merge commit is local. In the **History** tab, right-click the "Merge pull request …" commit, choose **Create Tag…** and enter `vX.Y.Z`. Then click **Push origin**: Desktop pushes tags made in the app even when there are no new commits. (It doesn't notice tags made with `git tag` on the command line; push those with `git push origin vX.Y.Z`.)
+- **Step 5:** switch to `development` and use **Branch → Merge into current branch…** and choose `main`. It's a fast-forward, so no merge commit is created. Then click **Push origin**.
+
+Don't create the tag through **Draft a new release** on GitHub: the Release workflow creates the release itself and would fail because it already exists.
+
+Before switching branches, Desktop offers to stash changed and untracked files that aren't ignored. Keep local-only material in `local-only/` (ignored) so it isn't carried along or lost with a discarded stash.
+
 ### Download packages
 
 `npm run package` (`scripts/package.mjs`) builds what the release workflow publishes, on any OS:
