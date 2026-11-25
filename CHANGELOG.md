@@ -6,6 +6,13 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 
 ## [Unreleased]
 
+### Added
+
+- `figtional setup`: guided setup that asks which folders the AI may read and adds Figtional to Claude Code (`claude mcp add`), Claude Desktop, Cursor and VS Code (merging their JSON config, with a `.bak` backup). `--yes`, `--client`, `--print` for scripted use.
+- `figtional serve --open` opens the viewer in the browser.
+- `FIGTIONAL_WRITABLE` and `FIGTIONAL_RECURSIVE` environment variables for `figtional mcp`.
+- A clear error when Node.js is older than 22.15, instead of a module-loading error.
+
 ### Changed
 
 - README: Limitations now lists what a `.fig` export leaves out (comments, history, sharing, live library links, Code Connect, fonts) and what it keeps.

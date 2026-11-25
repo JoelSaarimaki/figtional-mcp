@@ -1,6 +1,6 @@
 import { readFileSync, statSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { parse, resolve, sep } from 'node:path';
+import { spawn } from 'node:child_process';
+import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { createHash } from 'node:crypto';
 import { FigArchive, encodeCanvas, guidToString } from '@figtional/fig-format';
@@ -15,12 +15,17 @@ import {
 } from '@figtional/mcp-server';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createViewerServer } from '@figtional/viewer';
+import { unsafeDefaultFolder } from './folders.js';
+import { SETUP_HELP, setup } from './setup.js';
+
+export { unsafeDefaultFolder };
 
 const HELP = `figtional ${SERVER_VERSION}: a local, file-scoped stand-in for the Figma MCP server
 
 Usage: figtional <command> [options]
 
 Commands:
+  setup     Connect Figtional to Claude Code, Claude Desktop, Cursor or VS Code
   mcp       Run the MCP server (stdio) for the given .fig files or folders
   serve     Read-only web viewer on http://127.0.0.1:3846
   dump      Summarise a .fig file (pages, node counts, format)
@@ -29,6 +34,7 @@ Commands:
   help      Show help for a command: figtional help <command>
 
 Examples:
+  figtional setup                                  guided setup for your AI apps
   figtional serve                                  view every .fig below this folder
   figtional mcp ./designs/App.fig                  let an agent read one file
   figtional mcp --writable --out ./edited ./designs  let it edit copies of a folder's files
@@ -43,6 +49,7 @@ const SCOPE_NOTE = `A file source gives access to that file. A folder source giv
 directly inside it (and below it with --recursive). Nothing else is accessible.`;
 
 const COMMAND_HELP: Record<string, string> = {
+  setup: SETUP_HELP,
   mcp: `Usage: figtional mcp [options] <file.fig | folder>...
 
 Runs the Figtional MCP server over stdio, exposing Figma MCP's tools (whoami, get_metadata,
@@ -51,7 +58,8 @@ use_figma, …) for the given sources only. Logs go to stderr.
 
 Options:
   --writable            Allow edits (use_figma) to every source; read-only by default
-  --recursive           Include subfolders of folder sources
+                        (or set FIGTIONAL_WRITABLE=true)
+  --recursive           Include subfolders of folder sources (or FIGTIONAL_RECURSIVE=true)
   --out <dir>           Save edited files to <dir> instead of overwriting the originals
   --config <file>       Load sources from a figtional.config.json
   --extra-tools[=a,b]   Enable Figtional-only tools (all, or a comma-separated list):
@@ -71,6 +79,7 @@ folder and system folders, and stops after 2000 folders or 8 levels.
 
 Options:
   --port <n>            Port (default 3846)
+  --open                Open the viewer in your web browser
   --config <file>       Load sources from a figtional.config.json
 
 Folders are searched including their subfolders (hidden folders and node_modules are skipped).
@@ -118,6 +127,8 @@ export async function main(argv: string[]): Promise<number | undefined> {
     return 0;
   }
   switch (command) {
+    case 'setup':
+      return setup(rest);
     case 'mcp':
       return runMcp(rest);
     case 'dump':
@@ -147,41 +158,6 @@ export async function main(argv: string[]): Promise<number | undefined> {
 /** Budget for the implicit "current folder" scope of a bare `figtional serve`. */
 export const DEFAULT_SCAN_LIMIT = { maxDirs: 2000, maxDepth: 8 };
 
-/**
- * Folders a bare `figtional serve` must not crawl: filesystem/drive roots, the home folder and
- * system folders, i.e. the places a console tends to open in. Returns why, or undefined if fine.
- */
-export function unsafeDefaultFolder(
-  dir: string,
-  env: NodeJS.ProcessEnv = process.env,
-  home = homedir(),
-): string | undefined {
-  const norm = (p: string) => {
-    const r = resolve(p);
-    const t = r.length > parse(r).root.length ? r.replace(/[\\/]+$/, '') : r;
-    return process.platform === 'win32' ? t.toLowerCase() : t;
-  };
-  const d = norm(dir);
-  if (d === norm(parse(resolve(dir)).root)) return 'the root of a drive or filesystem';
-  if (home && d === norm(home)) return 'your home folder';
-  const system = [env.WINDIR, env.SystemRoot, env.ProgramFiles, env['ProgramFiles(x86)'], env.ProgramData]
-    .filter((p): p is string => !!p)
-    .map(norm);
-  // Folders that contain everyone's home folders: refuse only the folder itself.
-  const parents = [norm(resolve(home, '..'))];
-  if (process.platform !== 'win32') {
-    system.push(
-      ...['/usr', '/etc', '/var', '/opt', '/bin', '/sbin', '/System', '/Library', '/Applications'].map(norm),
-    );
-    parents.push(...['/Users', '/home'].map(norm));
-  }
-  if (parents.includes(d)) return 'the folder that holds all user folders';
-  for (const s of system) {
-    if (d === s || d.startsWith(s + sep)) return 'a system folder';
-  }
-  return undefined;
-}
-
 /** Builds workspace options from CLI args and an optional config file. */
 export function parseMcpArgs(
   args: string[],
@@ -199,6 +175,7 @@ export function parseMcpArgs(
       'extra-tools': { type: 'string' },
       port: { type: 'string' },
       watch: { type: 'boolean' },
+      open: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
     // --extra-tools without a value
@@ -260,6 +237,7 @@ export function parseMcpArgs(
       : undefined;
   return {
     port: values.port ? Number(values.port) : undefined,
+    open: values.open === true,
     workspace: {
       sources,
       writable: values.writable === true || config.writable === true,
@@ -275,7 +253,11 @@ async function serve(args: string[]): Promise<number | undefined> {
     process.stdout.write(COMMAND_HELP.serve!);
     return 0;
   }
-  const { workspace: wsOpts, port } = parseMcpArgs(args, process.cwd(), {
+  const {
+    workspace: wsOpts,
+    port,
+    open,
+  } = parseMcpArgs(args, process.cwd(), {
     defaultToCwd: true,
     recursiveFolders: true,
   });
@@ -301,12 +283,35 @@ async function serve(args: string[]): Promise<number | undefined> {
   process.stdout.write(
     `Figtional viewer: http://127.0.0.1:${actualPort}/  (${files.length} file(s); read-only; Ctrl+C to stop)\n`,
   );
+  if (open) openBrowser(`http://127.0.0.1:${actualPort}/`);
   return undefined;
+}
+
+/** Opens a URL in the default browser (best effort: the URL is printed anyway). */
+function openBrowser(url: string): void {
+  const [cmd, args]: [string, string[]] =
+    process.platform === 'win32'
+      ? ['explorer.exe', [url]]
+      : process.platform === 'darwin'
+        ? ['open', [url]]
+        : ['xdg-open', [url]];
+  try {
+    spawn(cmd, args, { detached: true, stdio: 'ignore' })
+      .on('error', () => {})
+      .unref();
+  } catch {
+    /* no browser */
+  }
 }
 
 async function runMcp(args: string[]): Promise<number | undefined> {
   // Allow a bare `--extra-tools` flag (parseArgs needs a value for string options).
   const normalized = args.map((a) => (a === '--extra-tools' ? '--extra-tools=all' : a));
+  // Settings from the environment (used by the Claude Desktop extension's options).
+  const envFlag = (name: string) => /^(1|true|yes)$/i.test(process.env[name] ?? '');
+  if (envFlag('FIGTIONAL_WRITABLE') && !normalized.includes('--writable')) normalized.unshift('--writable');
+  if (envFlag('FIGTIONAL_RECURSIVE') && !normalized.includes('--recursive'))
+    normalized.unshift('--recursive');
   if (normalized.includes('--help') || normalized.includes('-h')) {
     process.stdout.write(COMMAND_HELP.mcp!);
     return 0;

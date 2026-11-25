@@ -131,7 +131,14 @@ function readCentralDirectory(src: ByteSource): ZipEntry[] {
 
 /** An entry to write: either new content, or a raw copy of an entry from an existing archive. */
 export type ZipWriteEntry =
-  | { name: string; data: Uint8Array; method?: number; date?: Date }
+  | {
+      name: string;
+      data: Uint8Array;
+      method?: number;
+      date?: Date;
+      /** Unix permissions (e.g. 0o755 for a script); marks the entry as made on Unix. */
+      unixMode?: number;
+    }
   | { name: string; copyFrom: ZipReader; date?: Date };
 
 export interface ZipSink {
@@ -193,7 +200,8 @@ export function writeZip(entries: ZipWriteEntry[], sink: ZipSink): void {
     const cent = new Uint8Array(46 + nameBytes.length);
     const cv = view(cent);
     cv.setUint32(0, SIG_CENTRAL, true);
-    cv.setUint16(4, 20, true);
+    const unixMode = 'data' in e ? e.unixMode : undefined;
+    cv.setUint16(4, unixMode !== undefined ? 0x0314 : 20, true); // version made by (3 = Unix)
     cv.setUint16(6, 20, true);
     cv.setUint16(8, flags, true);
     cv.setUint16(10, method, true);
@@ -203,7 +211,14 @@ export function writeZip(entries: ZipWriteEntry[], sink: ZipSink): void {
     cv.setUint32(20, payload.length, true);
     cv.setUint32(24, size, true);
     cv.setUint16(28, nameBytes.length, true);
-    cv.setUint32(38, e.name.endsWith('/') ? 0x10 : 0, true); // external attrs: directory flag
+    // external attrs: MS-DOS directory flag, plus the Unix mode in the high 16 bits
+    const dosAttrs = e.name.endsWith('/') ? 0x10 : 0;
+    const fileType = e.name.endsWith('/') ? 0o040000 : 0o100000;
+    cv.setUint32(
+      38,
+      unixMode !== undefined ? (((fileType | unixMode) << 16) | dosAttrs) >>> 0 : dosAttrs,
+      true,
+    );
     cv.setUint32(42, offset, true);
     cent.set(nameBytes, 46);
     central.push(cent);
