@@ -117,8 +117,10 @@ message NodeChange {
   string key = 84; StyleType styleType = 85; string styleDescription = 86; string version = 87; string sortPosition = 88;
   StyleId styleIdForFill = 89; StyleId styleIdForStrokeFill = 90; StyleId styleIdForText = 91; StyleId styleIdForEffect = 92;
   StyleId styleIdForGrid = 93; TextCase textCase = 94; TextDecoration textDecoration = 95; float paragraphSpacing = 96;
-  float paragraphIndent = 97;
+  float paragraphIndent = 97; VectorData vectorData = 98; StrokeCap strokeCap = 99;
 }
+message VectorData { uint vectorNetworkBlob = 1; Vector normalizedSize = 2; }
+enum StrokeCap { NONE = 0; ROUND = 1; SQUARE = 2; }
 enum StyleType { NONE = 0; FILL = 1; STROKE = 2; TEXT = 3; EFFECT = 4; EXPORT = 5; GRID = 6; }
 enum TextCase { ORIGINAL = 0; UPPER = 1; LOWER = 2; TITLE = 3; SMALL_CAPS = 4; SMALL_CAPS_FORCED = 5; }
 enum TextDecoration { NONE = 0; UNDERLINE = 1; STRIKETHROUGH = 2; }

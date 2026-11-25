@@ -3,7 +3,13 @@
  * use_figma tool. Behaviour, names and error messages follow Figma where known
  * (docs/figma-mcp-tools.md §5); unsupported APIs throw NotSupportedInFigtional.
  */
-import { type GUID, type NodeChange, guidToString } from '@figtional/fig-format';
+import {
+  type GUID,
+  type NodeChange,
+  decodeVectorNetwork,
+  encodeVectorNetwork,
+  guidToString,
+} from '@figtional/fig-format';
 import {
   ComponentOps,
   copyInstanceFields,
@@ -21,6 +27,15 @@ import {
   resolveVariable,
   rotationDegrees,
   stackProps,
+  type Subpath,
+  SvgUnsupported,
+  mergeNetwork,
+  networkToPathData,
+  parsePathData,
+  parseSvgDocument,
+  subpathBounds,
+  subpathsToNetwork,
+  transformSubpaths,
 } from '@figtional/fig-model';
 import { fontFallbacksIn, renderPng } from '@figtional/fig-render';
 
@@ -304,6 +319,33 @@ export function createFigmaApi(ctx: ApiContext) {
   };
   const dynamicPage = (prop: string, asyncName: string) =>
     new Error(`Cannot call ${prop} setter with documentAccess: dynamic-page. Use node.${asyncName} instead.`);
+
+  /**
+   * Stores subpaths (in the parent's coordinates) as a vector node's network: the node is placed
+   * at the paths' bounds and the network is relative to that corner (Figma's normalizedSize).
+   */
+  const vectorFields = (paths: Subpath[], fill: 'NONZERO' | 'ODD' | null, extra: Subpath[] = []) => {
+    const all = [...paths, ...extra];
+    const b = subpathBounds(all);
+    const shift = { m00: 1, m01: 0, m02: -b.x, m10: 0, m11: 1, m12: -b.y };
+    const net = subpathsToNetwork(transformSubpaths(paths, shift), fill);
+    if (extra.length) mergeNetwork(net, subpathsToNetwork(transformSubpaths(extra, shift), null));
+    const size = { x: Math.max(b.width, 0.01), y: Math.max(b.height, 0.01) };
+    return {
+      size,
+      transform: { m00: 1, m01: 0, m02: b.x, m10: 0, m11: 1, m12: b.y },
+      vectorData: {
+        vectorNetworkBlob: session.addBlob(encodeVectorNetwork(net)),
+        normalizedSize: { ...size },
+      },
+    };
+  };
+  const networkOf = (d: NodeChange) => {
+    const i = d.vectorData?.vectorNetworkBlob;
+    return i === undefined || !doc.blobs[i]
+      ? { vertices: [], segments: [], regions: [] }
+      : decodeVectorNetwork(doc.blobs[i]!.bytes);
+  };
 
   const imageApi = (hash: string) => ({
     hash,
@@ -1369,6 +1411,112 @@ export function createFigmaApi(ctx: ApiContext) {
       return sizes.size === 1 ? segs[0].fontSize : MIXED;
     }
 
+    // ------------------------------------------------ vectors
+    private requireVector(prop: string) {
+      if (this.type !== 'VECTOR') throw typeError(prop, this.type);
+    }
+    get vectorPaths() {
+      this.requireVector('vectorPaths');
+      const net = networkOf(this._d);
+      const ns = this._d.vectorData?.normalizedSize;
+      const sx = ns?.x ? this.width / ns.x : 1;
+      const sy = ns?.y ? this.height / ns.y : 1;
+      const spaced = (d: string) =>
+        d
+          .replace(/([MLCZ])/g, ' $1 ')
+          .replace(/\s+/g, ' ')
+          .trim();
+      if (!net.regions.length)
+        return net.segments.length
+          ? [{ windingRule: 'NONE', data: spaced(networkToPathData(net, sx, sy)) }]
+          : [];
+      return net.regions.map((r) => ({
+        windingRule: r.windingRule === 'ODD' ? 'EVENODD' : 'NONZERO',
+        data: spaced(networkToPathData({ ...net, regions: [r] }, sx, sy, true)),
+      }));
+    }
+    set vectorPaths(v: { windingRule: string; data: string }[]) {
+      this.requireVector('vectorPaths');
+      if (!Array.isArray(v)) throw new Error('vectorPaths must be an array of { windingRule, data }');
+      const filled: Subpath[] = [];
+      const open: Subpath[] = [];
+      let rule: 'NONZERO' | 'ODD' = 'NONZERO';
+      v.forEach((p, i) => {
+        if (!['NONZERO', 'EVENODD', 'NONE'].includes(p?.windingRule))
+          throw new Error(`Invalid windingRule at [${i}]: expected "NONZERO", "EVENODD" or "NONE"`);
+        const paths = parsePathData(String(p.data ?? ''));
+        if (p.windingRule === 'NONE') open.push(...paths);
+        else {
+          filled.push(...paths);
+          if (p.windingRule === 'EVENODD') rule = 'ODD';
+        }
+      });
+      const t = this._d.transform ?? IDENTITY_T;
+      const toParent = { m00: 1, m01: 0, m02: t.m02, m10: 0, m11: 1, m12: t.m12 };
+      editRaw(
+        this.id,
+        vectorFields(
+          transformSubpaths(filled, toParent),
+          filled.length ? rule : null,
+          transformSubpaths(open, toParent),
+        ),
+      );
+      session.invalidateGeometry(session.raw(this.id));
+    }
+    get vectorNetwork() {
+      this.requireVector('vectorNetwork');
+      const net = networkOf(this._d);
+      return deepFreeze({
+        vertices: net.vertices.map((p) => ({ x: p.x, y: p.y })),
+        segments: net.segments.map((s) => ({
+          start: s.start,
+          end: s.end,
+          tangentStart: { ...s.tangentStart },
+          tangentEnd: { ...s.tangentEnd },
+        })),
+        regions: net.regions.map((r) => ({
+          windingRule: r.windingRule === 'ODD' ? 'EVENODD' : 'NONZERO',
+          loops: r.loops.map((l) => [...l]),
+        })),
+      });
+    }
+    set vectorNetwork(_v: unknown) {
+      throw dynamicPage('vectorNetwork', 'setVectorNetworkAsync');
+    }
+    async setVectorNetworkAsync(v: any) {
+      this.requireVector('setVectorNetworkAsync');
+      const vertices = (v?.vertices ?? []).map((p: any) => ({ x: Number(p.x), y: Number(p.y), styleID: 0 }));
+      const segments = (v?.segments ?? []).map((s: any, i: number) => {
+        if (vertices[s.start] === undefined || vertices[s.end] === undefined)
+          throw new Error(`Invalid vertex index in segments[${i}]`);
+        return {
+          styleID: 0,
+          start: s.start,
+          end: s.end,
+          tangentStart: { x: s.tangentStart?.x ?? 0, y: s.tangentStart?.y ?? 0 },
+          tangentEnd: { x: s.tangentEnd?.x ?? 0, y: s.tangentEnd?.y ?? 0 },
+        };
+      });
+      const regions = (v?.regions ?? []).map((r: any) => ({
+        styleID: 0,
+        windingRule: r.windingRule === 'EVENODD' ? 'ODD' : 'NONZERO',
+        loops: (r.loops ?? []).map((l: number[]) => [...l]),
+      }));
+      const xs = vertices.map((p: any) => p.x);
+      const ys = vertices.map((p: any) => p.y);
+      const w = xs.length ? Math.max(...xs) - Math.min(0, ...xs) : 0;
+      const h = ys.length ? Math.max(...ys) - Math.min(0, ...ys) : 0;
+      const size = { x: Math.max(w, 0.01), y: Math.max(h, 0.01) };
+      editRaw(this.id, {
+        size,
+        vectorData: {
+          vectorNetworkBlob: session.addBlob(encodeVectorNetwork({ vertices, segments, regions })),
+          normalizedSize: { ...size },
+        },
+      });
+      session.invalidateGeometry(session.raw(this.id));
+    }
+
     // ------------------------------------------------ styles
     get fillStyleId() {
       return styles.idFor(this._d, 'styleIdForFill');
@@ -2366,8 +2514,57 @@ export function createFigmaApi(ctx: ApiContext) {
     group() {
       throw new FigtionalUnsupported('figma.group', 'Use a frame (createFrame / createAutoLayout) instead.');
     },
-    createVector: notSupportedFigtional('createVector'),
-    createNodeFromSvg: notSupportedFigtional('createNodeFromSvg'),
+    createVector() {
+      return create('VECTOR', {
+        size: { x: 0.01, y: 0.01 },
+        fillPaints: [],
+        strokePaints: [structuredClone(BLACK)],
+        vectorData: {
+          vectorNetworkBlob: session.addBlob(
+            encodeVectorNetwork({ vertices: [], segments: [], regions: [] }),
+          ),
+          normalizedSize: { x: 0.01, y: 0.01 },
+        },
+      });
+    },
+    createNodeFromSvg(svg: string) {
+      let parsed: ReturnType<typeof parseSvgDocument>;
+      try {
+        parsed = parseSvgDocument(String(svg));
+      } catch (e) {
+        if (e instanceof SvgUnsupported)
+          throw new FigtionalUnsupported(`createNodeFromSvg with ${e.message}`);
+        throw e;
+      }
+      const frame = create('FRAME', {
+        name: 'Frame',
+        size: { x: parsed.width, y: parsed.height },
+        fillPaints: [],
+        frameMaskDisabled: false,
+      });
+      for (const shape of parsed.shapes) {
+        const solid = (c: { r: number; g: number; b: number; a: number }) => ({
+          type: 'SOLID',
+          color: { r: c.r, g: c.g, b: c.b, a: 1 },
+          opacity: c.a,
+          visible: true,
+          blendMode: 'NORMAL',
+        });
+        session.create('VECTOR', frame.id, undefined, {
+          name: shape.name,
+          visible: true,
+          opacity: shape.opacity,
+          ...vectorFields(shape.paths, shape.fill ? shape.fillRule : null),
+          strokeWeight: shape.stroke ? shape.strokeWidth : 0,
+          strokeAlign: 'CENTER',
+          strokeJoin: shape.strokeJoin,
+          ...(shape.strokeCap !== 'NONE' ? { strokeCap: shape.strokeCap } : {}),
+          fillPaints: shape.fill ? [solid(shape.fill)] : [],
+          strokePaints: shape.stroke ? [solid(shape.stroke)] : [],
+        });
+      }
+      return frame;
+    },
     createImage(data: Uint8Array) {
       if (!ArrayBuffer.isView(data)) throw new Error('createImage expects a Uint8Array');
       const bytes = Uint8Array.from(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
