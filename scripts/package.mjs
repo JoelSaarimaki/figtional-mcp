@@ -131,12 +131,16 @@ Docs: https://github.com/JoelSaarimaki/figtional-mcp
    may edit them, and which apps to connect: Claude Code, Claude Desktop, Cursor, VS Code.
 4. Restart the app (or start a new Claude Code session) and ask it about your designs.
 
-To look at the files yourself, in a terminal in this folder:
-     Windows:  figtional.cmd serve --open "C:\\path\\to\\designs"
+Web viewer: see your .fig files and watch the AI's edits appear.
+The setup prints a ready-made command for it at the end. Or open a terminal in THIS folder
+(Windows: right-click the folder > Open in Terminal) and run, with your designs folder:
+     Windows:        .\\figtional.cmd serve --open "C:\\path\\to\\designs"
      macOS / Linux:  ./figtional serve --open ~/path/to/designs
+It opens http://127.0.0.1:3846 in your browser. Ctrl+C in the terminal stops it.
 
 Get .fig files from Figma with File > Save local copy.
-Claude Desktop users can install figtional-${version}.mcpb instead of this folder.
+Claude Desktop users can install figtional-${version}.mcpb instead of running the setup,
+and still use this folder for the web viewer.
 `;
 
 // 1. Compile.

@@ -16,7 +16,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
-import { delimiter, dirname, join, resolve } from 'node:path';
+import { basename, delimiter, dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { parseArgs } from 'node:util';
 import { unsafeDefaultFolder } from './folders.js';
@@ -150,6 +150,26 @@ export function serverEntry(
       ...folders,
     ],
   };
+}
+
+/**
+ * A command that starts the viewer from any folder: the launcher next to a downloaded copy
+ * (figtional.cmd / figtional), or this Node.js and script for a clone of the repository.
+ */
+export function viewerCommand(
+  folders: string[],
+  nodePath = process.execPath,
+  scriptPath = currentScript(),
+  platform: NodeJS.Platform = process.platform,
+  exists: (p: string) => boolean = existsSync,
+): string {
+  const q = (a: string) => `"${a}"`;
+  const launcher = join(dirname(dirname(scriptPath)), platform === 'win32' ? 'figtional.cmd' : 'figtional');
+  const head =
+    basename(scriptPath) === 'figtional.mjs' && exists(launcher)
+      ? q(launcher)
+      : `${q(nodePath)} ${q(scriptPath)}`;
+  return `${head} serve --open ${folders.map(q).join(' ')}`;
 }
 
 function currentScript(): string {
@@ -390,7 +410,14 @@ export async function setup(args: string[]): Promise<number> {
   out(`Figtional can now read ${choices.writable ? 'and edit ' : ''}the .fig files in:`);
   for (const f of choices.folders) out(`  ${f}${choices.recursive ? ' (and its subfolders)' : ''}`);
   out('Restart the apps you changed (start a new Claude Code session) to load it.');
-  out('To look at the files yourself: figtional serve ' + choices.folders.map((f) => `"${f}"`).join(' '));
+  out('');
+  out('To watch the files in the web viewer, run this in a terminal (from any folder):');
+  const viewer = viewerCommand(choices.folders);
+  if (process.platform === 'win32') {
+    // PowerShell needs "&" to run a quoted path; in Command Prompt "&" is an error.
+    out(`  PowerShell:      & ${viewer}`);
+    out(`  Command Prompt:  ${viewer}`);
+  } else out(`  ${viewer}`);
   return failed ? 1 : 0;
 }
 

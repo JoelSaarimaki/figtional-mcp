@@ -10,6 +10,7 @@ import {
   mergeConfig,
   normalizeFolderInput,
   serverEntry,
+  viewerCommand,
   writeClientConfig,
 } from './setup.js';
 
@@ -165,6 +166,25 @@ describe('claudeCodeCommand', () => {
   it('quotes paths with spaces', () => {
     expect(claudeCodeCommand(entry)).toBe(
       'claude mcp add --scope user figtional -- /usr/bin/node /opt/figtional/lib/figtional.mjs mcp --recursive "/designs/A B"',
+    );
+  });
+});
+
+describe('viewerCommand', () => {
+  it('uses the launcher next to a downloaded copy', () => {
+    const script = join('/apps', 'figtional-0.1.2', 'lib', 'figtional.mjs');
+    const launcher = join('/apps', 'figtional-0.1.2', 'figtional.cmd');
+    expect(viewerCommand(['/d/A B'], '/node', script, 'win32', (p) => p === launcher)).toBe(
+      `"${launcher}" serve --open "/d/A B"`,
+    );
+    const sh = join('/apps', 'figtional-0.1.2', 'figtional');
+    expect(viewerCommand(['/d'], '/node', script, 'darwin', (p) => p === sh)).toBe(
+      `"${sh}" serve --open "/d"`,
+    );
+  });
+  it('uses node and the script in a clone of the repository', () => {
+    expect(viewerCommand(['/d'], '/node', '/repo/packages/cli/dist/bin.js', 'linux', () => true)).toBe(
+      '"/node" "/repo/packages/cli/dist/bin.js" serve --open "/d"',
     );
   });
 });

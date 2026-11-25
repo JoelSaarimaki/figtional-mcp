@@ -77,7 +77,9 @@ Real Figma exports are useful for tests but are **not** committed. Put them in a
 
 ## Pull requests
 
+- **Titles.** Normal pull requests (a `feature/…` or `fix/…` branch into `development`) say what the change does, in the imperative and without a version: "Fix corner radius in get_design_context". Release pull requests (`development` into `main`) are titled `Release X.Y.Z`, matching the release commit and tag, with that version's CHANGELOG section as the description.
+- **Labels** are optional. Use GitHub's defaults (`bug`, `enhancement`, `documentation`) on normal pull requests if they help; release pull requests don't need one.
 - Add tests for format or behaviour changes.
 - Run `npm run lint` and `npm test` before you push.
-- Keep README.md (setup, client configuration, limitations) and PLAN.md's status table up to date with your change.
+- Add user-visible changes to `[Unreleased]` in CHANGELOG.md, and keep README.md (setup, client configuration, limitations) and PLAN.md's status table up to date with your change.
 - Changes to the encoder need a manual check that Figma can import the result. Note it in `docs/compat-log.md`.
