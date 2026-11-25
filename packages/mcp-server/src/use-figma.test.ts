@@ -446,6 +446,26 @@ describe('use_figma edits', () => {
     });
   });
 
+  it('groups layers inside a frame laid out in the same call, and renders clipped-away content', async () => {
+    const r = await run(`
+      const root = figma.createFrame(); root.y = 2000; root.layoutMode = 'HORIZONTAL';
+      root.primaryAxisSizingMode = 'AUTO'; root.counterAxisSizingMode = 'AUTO'; root.paddingLeft = 24; root.paddingTop = 24;
+      const cell = figma.createFrame(); cell.resize(120, 120); root.appendChild(cell);
+      const a = figma.createRectangle(); a.resize(60, 60); a.x = 10; a.y = 10; cell.appendChild(a);
+      const g = figma.group([a], cell);
+      // A clipping frame whose only content lies outside it (resvg used to panic on this).
+      const clip = figma.createFrame(); clip.resize(50, 50); clip.clipsContent = true;
+      const away = figma.createRectangle(); away.y = -500; clip.appendChild(away);
+      return { g: [g.x, g.y], clip: clip.id };
+    `);
+    expect(r.ok, r.text).toBe(true);
+    const o = JSON.parse(r.text);
+    expect(o.g).toEqual([10, 10]);
+    const doc = reload();
+    const { renderPng } = await import('@figtional/fig-render');
+    expect(renderPng(doc, doc.getNodeById(o.clip)!).width).toBe(50);
+  });
+
   it('accumulates edits in --out copies and keeps the original untouched', async () => {
     const before = readFileSync(file);
     const out = join(dir, 'out');

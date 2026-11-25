@@ -744,7 +744,7 @@ function renderNodeInner(b: SvgBuilder, node: SceneNode, transform: Matrix): str
     if (n.type === 'BOOLEAN_OPERATION' && !(n.fillGeometry ?? []).length) inner.push(booleanPaint(b, n));
     // Boolean operation children are operands, already merged into its geometry.
     if (n.type !== 'BOOLEAN_OPERATION') {
-      const kids = renderChildren(b, node);
+      const kids = renderChildren(b, node, clipsContent(n) ? node.absoluteBoundingBox : undefined);
       if (kids) {
         if (clipsContent(n)) {
           const shapes = shapePaths(b, { ...n, fillGeometry: n.fillGeometry });
@@ -772,7 +772,12 @@ function renderNodeInner(b: SvgBuilder, node: SceneNode, transform: Matrix): str
 }
 
 /** Children in order, applying masks (a `mask: true` layer masks the siblings above it). */
-function renderChildren(b: SvgBuilder, node: SceneNode): string {
+/**
+ * Draws a node's children. With `clip` (a clipping frame's absolute bounds), children whose drawn
+ * area misses it are left out: they would be invisible anyway, and resvg panics (aborting the
+ * process) on a clip group whose content lies entirely outside the clip.
+ */
+function renderChildren(b: SvgBuilder, node: SceneNode, clip?: Rect): string {
   const out: string[] = [];
   let maskId: string | undefined;
   let masked: string[] = [];
@@ -792,6 +797,17 @@ function renderChildren(b: SvgBuilder, node: SceneNode): string {
         `<mask id="${maskId}" maskUnits="userSpaceOnUse" x="-100000" y="-100000" width="200000" height="200000"${alpha}><g${matrixAttr(c.relativeTransform)}>${c.data.maskType === 'ALPHA' || c.data.maskType === 'LUMINANCE' ? renderNode(b, c, IDENTITY_M) : shape}</g></mask>`,
       );
       continue;
+    }
+    if (clip && c.visible) {
+      const r = renderBounds(c);
+      const m = 1 + (c.data.strokeWeight ?? 0);
+      if (
+        r.x - m >= clip.x + clip.width ||
+        r.y - m >= clip.y + clip.height ||
+        r.x + r.width + m <= clip.x ||
+        r.y + r.height + m <= clip.y
+      )
+        continue;
     }
     const xml = renderNode(b, c, c.relativeTransform);
     if (maskId) masked.push(xml);

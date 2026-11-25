@@ -457,15 +457,9 @@ export function createFigmaApi(ctx: ApiContext) {
       const childScene = scene(child.id);
       if (childScene.isInstanceSublayer) throw new Error('Cannot move a layer that is inside an instance');
       if (child.type === 'PAGE') throw new Error('Cannot move a page into a node');
-      // Keep the absolute position when reparenting into a non-auto-layout container.
-      const abs = childScene.absoluteTransform;
+      // Like Figma, reparenting keeps the child's x/y relative to its parent (Figma's own skills:
+      // "Reparenting preserves relative x/y values"), so its position on the canvas may change.
       session.move(child.id, this.id, index);
-      const newParent = scene(this.id);
-      if (!stackProps(newParent.data) || childScene.data.stackPositioning === 'ABSOLUTE') {
-        const p = newParent.figType === 'CANVAS' ? IDENTITY_T : newParent.absoluteTransform;
-        const raw = session.raw(child.id);
-        raw.transform = { ...(raw.transform ?? IDENTITY_T), m02: abs.m02 - p.m02, m12: abs.m12 - p.m12 };
-      }
       session.markDirty(this.id);
     }
   }
@@ -908,6 +902,8 @@ export function createFigmaApi(ctx: ApiContext) {
   ) => {
     if (!Array.isArray(nodes) || !nodes.length)
       throw new Error(`First argument to ${fn}() must be an array of at least one node`);
+    // Positions are read below: apply pending auto layout first, as Figma does.
+    flushLayout();
     const parentId: string = parent?.id ?? pageId();
     const p = scene(parentId);
     const items = nodes.map((n) => {
@@ -1154,6 +1150,7 @@ export function createFigmaApi(ctx: ApiContext) {
     flatten(nodes: any[], parent?: any, index?: number) {
       if (!Array.isArray(nodes) || !nodes.length)
         throw new Error('First argument to flatten() must be an array of at least one node');
+      flushLayout();
       const items = nodes.map((n) => {
         if (!n?.id || !doc.getNodeById(n.id)) throw new Error('Expected a node');
         const s = scene(n.id);

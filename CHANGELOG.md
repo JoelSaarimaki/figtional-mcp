@@ -14,6 +14,15 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 - `use_figma`: `strokeCap`, `cornerSmoothing`, `layoutGrids` on frames and grid styles, `textTruncation` and `maxLines` (measured and drawn with an ellipsis), plugin data (`setPluginData`, `setSharedPluginData` and their getters and key lists), instance `overrides` and `resetOverrides()`, and setting `mainComponent`.
 - `use_figma`: `figma.createPolygon()` and `figma.createStar()` with `pointCount` and `innerRadius`, and `arcData` on ellipses (arcs, pie slices, rings), drawn by the viewer and screenshots.
 
+### Changed
+
+- `use_figma`: `appendChild` and `insertChild` keep the child's `x`/`y` relative to its new parent, as Figma does (its own skills: "Reparenting preserves relative x/y values"). Figtional used to keep the canvas position instead.
+
+### Fixed
+
+- Rendering a frame that clips its content, when all of that content lay outside the frame, crashed the process (a panic in the PNG renderer), taking down the MCP server or viewer. Such content is now left out before rendering.
+- `figma.group`, boolean operations and `flatten` now apply pending auto layout before reading positions.
+
 ## [0.2.1]
 
 ### Changed
