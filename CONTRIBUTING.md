@@ -38,7 +38,7 @@ A release is the merge of `development` into `main`:
 
 1. On `development`, check that `[Unreleased]` in CHANGELOG.md describes the changes, then run `npm run release` (or `npm run release -- minor` / `-- major` when that was decided). It sets the new version everywhere, moves the changelog entries under it and updates the lockfile.
 2. Commit with the message `Release X.Y.Z` and push `development`.
-3. Open a pull request from `development` to `main` and merge it with a **merge commit** (not squash, so both branches share history).
+3. Open a pull request from `development` to `main`. Besides CI, it runs the **Release** workflow's build and smoke tests (without publishing), so the downloads are known to work on every OS before the merge. Merge it with a **merge commit** (not squash, so both branches share history).
 4. Tag the merge on `main` and push the tag: `git tag -a vX.Y.Z -m "Figtional X.Y.Z"` then `git push origin main vX.Y.Z`. The tag starts the **Release** workflow (`.github/workflows/release.yml`): it builds the downloads, smoke-tests the zip on Windows, macOS and Linux (x64 and ARM, Node.js 22.15.0 and 24), and publishes a GitHub release with the changelog section as notes. Check that it went green.
 5. Fast-forward `development` to `main`: `git checkout development && git merge --ff-only main && git push`.
 
@@ -49,7 +49,7 @@ A release is the merge of `development` into `main`:
 - `release/figtional-X.Y.Z.zip`: our code bundled into `lib/figtional.mjs` with esbuild, the viewer's `static/` files, launchers (`figtional`, `figtional.cmd`, `Set up Figtional.cmd`, `Set up Figtional.command`) and a README.txt. The only native dependency, `@resvg/resvg-js`, is included with the binaries of every supported platform, downloaded from the npm registry and checked against the hashes in `package-lock.json`. So one zip serves Windows, macOS and Linux.
 - `release/figtional-X.Y.Z.mcpb`: the same files with a `manifest.json`, as a Claude Desktop extension. The manifest is checked with `@anthropic-ai/mcpb`.
 
-Test an unpacked zip with `node scripts/smoke-release.mjs <folder> [file.fig]` (with a `.fig` file it also takes a screenshot, edits a copy and measures text). Run the workflow by hand (Actions → Release → Run workflow) to build and test without publishing. A new dependency that reads files next to its own module breaks in the bundle: the smoke test's `use_figma` and viewer checks are there to catch that.
+Test an unpacked zip with `node scripts/smoke-release.mjs <folder> [file.fig]` (with a `.fig` file it also takes a screenshot, edits a copy and measures text). Release pull requests and manual runs (Actions → Release → Run workflow) build and test without publishing. A new dependency that reads files next to its own module breaks in the bundle: the smoke test's `use_figma` and viewer checks are there to catch that.
 
 ## Ground rules
 

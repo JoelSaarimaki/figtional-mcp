@@ -2,10 +2,13 @@ name: Release
 
 # Pushing a tag vX.Y.Z (see CONTRIBUTING.md "Versions and releases") builds the download packages
 # once, tests the same zip on Windows, macOS and Linux, and publishes a GitHub release with them.
-# Run it by hand (Actions > Release > Run workflow) to build and test without publishing.
+# Pull requests into main (release PRs) build and test the packages without publishing, and so
+# can a manual run (Actions > Release > Run workflow).
 on:
   push:
     tags: ['v*']
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
