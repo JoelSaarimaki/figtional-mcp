@@ -6,11 +6,15 @@ Thanks for helping! Figtional is a local, file-scoped stand-in for the Figma MCP
 
 ```bash
 npm install
-npm run build
-npm test
+npm run build      # compile all packages (tsc -b)
+npm test           # vitest; runs against the sources
+npm run lint       # eslint
+npm run format     # prettier (code; Markdown is left alone)
 ```
 
-Requires Node.js 22.15 or newer (Figtional uses the zstd support in `node:zlib`). CI runs on Windows, macOS and Linux.
+Requires Node.js 22.15 or newer (Figtional uses the zstd support in `node:zlib`). CI runs on Windows, macOS and Linux with Node 22 and 24.
+
+Packages live in `packages/`: `fig-format` (reading and writing `.fig` files), `fig-model` (document model, auto layout, editing, components), `fig-render` (SVG/PNG), `mcp-server` (MCP tools, `use_figma`), `viewer` (web viewer; the client in `static/` is plain JavaScript with no build step) and `cli` (the `figtional` command). `CLAUDE.md` describes the codebase rules in more detail.
 
 ## Ground rules
 
@@ -27,4 +31,5 @@ Real Figma exports are useful for tests but are **not** committed. Put them in a
 
 - Add tests for format or behaviour changes.
 - Run `npm run lint` and `npm test` before you push.
+- Keep README.md (setup, client configuration, limitations) and PLAN.md's status table up to date with your change.
 - Changes to the encoder need a manual check that Figma can import the result. Note it in `docs/compat-log.md`.

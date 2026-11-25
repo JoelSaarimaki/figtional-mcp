@@ -44,7 +44,7 @@ Read tools are rate-limited: Starter/View/Collab seats get up to 6 calls **per m
 
 ## 2. Tool inventory
 
-The 19 tools titled in `.mcp.json` are the core set. Other tools are mentioned only in skills and may be gated or rolling out. The **Figtional** column follows PLAN.md §5.
+The 19 tools titled in `.mcp.json` are the core set. Other tools are mentioned only in skills and may be gated or rolling out. The **Figtional** column is the implementation state on 2026-11-25.
 
 | Tool | Kind | Figtional |
 |---|---|---|
@@ -53,22 +53,22 @@ The 19 tools titled in `.mcp.json` are the core set. Other tools are mentioned o
 | `get_design_context` | read | yes |
 | `get_screenshot` | read | yes |
 | `get_variable_defs` | read | yes |
-| `get_figjam` | read | yes (FigJam exports only) |
-| `search_design_system` | read | yes (configured files only) |
-| `get_libraries` | read | not in PLAN; candidate (embedded libraries) |
-| `get_code_connect_map` | Code Connect read | stub |
-| `get_code_connect_suggestions` | Code Connect read | not in PLAN; stub candidate |
-| `get_context_for_code_connect` | Code Connect read | not in PLAN; stub candidate |
+| `get_figjam` | read | not yet (planned for FigJam exports) |
+| `search_design_system` | read | yes (the file and its embedded library assets) |
+| `get_libraries` | read | yes (libraries embedded in the export) |
+| `get_code_connect_map` | Code Connect read | yes (always empty: no Code Connect data in `.fig`) |
+| `get_code_connect_suggestions` | Code Connect read | no |
+| `get_context_for_code_connect` | Code Connect read | no |
 | `add_code_connect_map` | Code Connect write | no |
 | `send_code_connect_mappings` | Code Connect write | no |
 | `create_design_system_rules` | prompt | yes |
-| `use_figma` | write (JS) | yes (subset) |
+| `use_figma` | write (JS) | yes (Plugin API subset; see README) |
 | `create_new_file` | write | no |
-| `upload_assets` | write | not in PLAN; see §4 |
+| `upload_assets` | write | no (only images already in the file can be used) |
 | `generate_diagram` | write (Mermaid→FigJam) | no |
 | `generate_figma_design` | write (web capture) | no |
 | `generate_image` | write (AI, credits) | no |
-| *skills only:* `get_motion_context` | read | candidate (prototype/motion data) |
+| *skills only:* `get_motion_context` | read | no (candidate) |
 | *skills only:* `html_to_figma`, `send_code_to_figma`, `generate_deck` | write | no |
 | *skills only:* `create_shader`, `get_shader`, `list_shaders`, `update_shader` | account library | no |
 | *skills only:* `create_generative_plugin`, `get_generative_plugin`, `list_generative_plugins`, `update_generative_plugin` | account library | no |
@@ -204,7 +204,7 @@ Source: `skills/figma-use/SKILL.md` and `references/` (gotchas, api-reference, p
 ### 5.3 Globals and non-standard helpers
 `figma` (Plugin API, `apiVersion '1.0.0'`). The sub-APIs `figma.variables`, `figma.util`, `figma.viewport`, `figma.motion`, `figma.annotations`, `figma.parameters`, `figma.teamLibrary` (the last is "not implemented"), `figma.spec` (Specs feature) and `figma.fileKey` are present.
 
-Figma MCP **extensions to the standard Plugin API** (the skills push these hard; PLAN §5.3 doesn't list them yet):
+Figma MCP **extensions to the standard Plugin API** (the skills push these hard). Figtional implements `createAutoLayout`, `query()`, `set()`, `placeholder` (accepted, no visual effect) and `screenshot()`:
 - `figma.createAutoLayout(direction?, props?)`: a frame with auto layout and both axes HUG; `'HORIZONTAL'` by default; props may be the first or second argument.
 - `node.query(selector)`: CSS-like search inside a subtree. Selectors: type (`FRAME`, `TEXT`…), `[name=X]`, `[name*=]`, `[name^=]`, `[name$=]`, dot paths `[fills.0.type=SOLID]` and `[fills.*.type=SOLID]`, `[mainComponent=id]`, `[mainComponent.name=Button]`, the combinators `>`, descendant, `+` and `~`, `:first-child`, `:last-child`, `:nth-child(n)`, `:not()`, `:is()`, `:where()`, `#id`, comma union and `*`. Returns a **QueryResult** with `.length`, `.first()`, `.last()`, `.toArray()`, `.each()`, `.map()`, `.filter()`, `.values(keys)`, `.set(props)`, `.query()` and iteration. There is no global `figma.query`.
 - `node.set(props)`: batch assignment. `layoutMode` is always applied first, `width`/`height` go through `resize()`, and it returns `this`.
@@ -259,7 +259,7 @@ Counts are occurrences inside code blocks of every `skills/**/*.md` plus `skills
 **Tier 4 (< 10):** `.textAlignHorizontal` 9 · `figma.variables.importVariableByKeyAsync` 9 · `figma.variables.getLocalVariablesAsync` 9 · `figma.createTable` 9 · `.description` 8 · `figma.getSlideGrid` 8 · `figma.createPage` 7 · `.set()` 7 · `.query()` 7 · `componentProperties` 7 · `figma.motion.*` 7 · `figma.importStyleByKeyAsync` 6 · `figma.createTextStyle` 6 · `figma.createNodeFromSvg` 6 · `.strokeWeight` 6 · `boundVariables` (read) 6 · `.setExplicitVariableModeForCollection()` 5 · `.effectStyleId` 5 · `figma.importComponentByKeyAsync` 5 · `figma.createLine` 5 · `figma.listAvailableFontsAsync` 4 · `figma.getLocalTextStylesAsync` 4 · `figma.createEffectStyle` 4 · `.setProperties()` 4 · `.insertChild()` 4 · `.insertCharacters()` 4 · `.detachInstance()` 4 · `.dashPattern` 4 · `.rotation` 4 · `.opacity` 4 · `figma.variables.createVariableAlias` 3 · `.setTextStyleIdAsync()` 3 · `.screenshot()` 3 · `.deleteCharacters()` 3 · `.layoutWrap` 3 · `.layoutGrow` 3 · `.clipsContent` 3 · `.documentationLinks` 3 · `figma.mixed` 3 · `figma.util.getSfSymbolCharacter` 3 · `figma.createVector` 3 · `figma.variables.setBoundVariableForEffect` 2 · `figma.group` 2 · `figma.createEllipse`/`createStar` 2 · `.placeholder` 2 · `.constraints` 2 · `.layoutGrids` 2 · `page.loadAsync` 2 · `.textCase` 2 · `.textAlignVertical` 2 · `.strokeAlign` 2 · `figma.getLocalEffectStylesAsync` 3 · single uses: `swapComponent`, `editComponentProperty`, `setRangeFontName`, `setRangeFontSize`, `setRangeFills`, `getRangeFontName`, `setFillStyleIdAsync`, `setStrokeStyleIdAsync`, `setEffectStyleIdAsync`, `textStyleId`, `textDecoration`, `layoutPositioning`, `counterAxisSpacing`, `blendMode`, `findChildren`, `findChild`, `exportAsync`, `getMainComponentAsync`, `figma.viewport.scrollAndZoomIntoView`.
 
 Takeaways for Figtional's subset (compared with PLAN §5.3):
-- **Add to the plan:** `createAutoLayout`, `node.query`/`node.set`, `getStyledTextSegments`, `addComponentProperty` (returns a key), `setVariableCodeSyntax`, `variable.scopes`, `renameMode`, `findAllWithCriteria` (indexed), `node.screenshot()`, `placeholder`, `setExplicitVariableModeForCollection`, `createNodeFromSvg`, the async style setters (`set*StyleIdAsync`), and `importComponentSetByKeyAsync`/`importStyleByKeyAsync`.
+- **State in Figtional (2026-11-25).** Implemented: `createAutoLayout`, `node.query`/`node.set`, `getStyledTextSegments`, `addComponentProperty` (returns a key) and the other component property APIs, `setVariableCodeSyntax`, `variable.scopes`, `renameMode`, `findAllWithCriteria`, `node.screenshot()`, `placeholder`, `importComponentSetByKeyAsync` (embedded library sets only). Not yet: `setExplicitVariableModeForCollection`, `createNodeFromSvg`, the async style setters (`set*StyleIdAsync`), `importStyleByKeyAsync`.
 - **Order:** text and paint plus `getNodeByIdAsync` and `appendChild`/`resize` cover most usage. Auto layout and variables come next. Components come after that.
 - **FigJam/Slides APIs** (`createSticky`, `createShapeWithText`, `createConnector`, `createTable`, slide grid) matter only if FigJam/Slides exports are supported.
 

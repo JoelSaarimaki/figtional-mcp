@@ -16,11 +16,11 @@ Secondary deliverable: a **read-only web viewer** (`figtional serve`) that rende
 
 The files must round-trip: a `.fig` written by Figtional must open in Figma without errors or lost design data.
 
-## Status (2026-11-24)
+## Status (2026-11-25)
 
 | Milestone | State |
 |---|---|
-| M0 Scaffold | **Done**: npm workspaces (`fig-format`, `fig-model`, `mcp-server`, `cli`), TS 5.9, vitest, eslint, prettier, CI matrix, LICENSE, CONTRIBUTING. |
+| M0 Scaffold | **Done**: npm workspaces (`fig-format`, `fig-model`, `fig-render`, `mcp-server`, `viewer`, `cli`), TS 5.9, vitest, eslint, prettier, CI matrix, LICENSE, CONTRIBUTING. |
 | M1 `fig-format` read | **Done**: lazy ZIP reader/writer, fig-kiwi container, order-preserving kiwi encoder (byte-identical round-trip on all references), path/vector-network blob codecs, atomic save with `.bak`. |
 | M2 `fig-model` read | **Done** (first version): scene tree, instance expansion (overrides, nested instances, derived data, text/visibility/swap properties), groups, styles and variables by key, explicit modes, usage collection. |
 | M3 MCP read tools | **Done** (first version): `whoami`, `get_metadata`, `get_variable_defs`, `search_design_system`, `get_libraries`, `get_code_connect_map` (empty), `create_design_system_rules`; extras behind `--extra-tools`; file/files/folder sources with realpath checks. `get_design_context` and `get_screenshot` are registered but return a `NotSupportedInFigtional` error until M7/M5. |

@@ -14,14 +14,14 @@ Read [PLAN.md](PLAN.md) before starting any milestone, and keep it up to date (t
 
 ```
 packages/fig-format   # .fig zip + fig-kiwi + kiwi decode/encode, blob codecs (pure, no policy)
-packages/fig-model    # document tree, instance resolution, variables, mutations
+packages/fig-model    # document tree, instances, variables, auto layout (layout.ts), editing (edit.ts), components (components.ts), fonts
 packages/fig-render   # node → SVG / PNG (resvg); render-diff tests against Figma exports
-packages/mcp-server   # MCP tools (Figma-compatible names + figtional_* extras), Workspace (source scoping)
+packages/mcp-server   # MCP tools (Figma-compatible names + figtional_* extras), Workspace (source scoping), use_figma + Plugin API subset, asset server
 packages/viewer       # read-only web viewer: src/server.ts (API) + static/ (plain JS client, no build step)
 packages/cli          # `figtional` CLI: mcp | serve | dump | inspect | validate
 test/                 # shared test helpers: synthetic .fig builder, references/ paths
 references/           # real Figma exports + screenshots + PNG/SVG exports (local only, git-ignored; free to read)
-docs/                 # fig-format.md (format notes), figma-mcp-tools.md (official tool schema snapshot), compat-log.md
+docs/                 # fig-format.md (format notes), figma-mcp-tools.md (official tool reference), compat-log.md (Figma import checks), images/ (README screenshot)
 ```
 
 ## Commands
@@ -74,6 +74,8 @@ Cross-platform: the code must work on Windows, macOS and Linux. Use `node:path`/
 - Use `Playground.fig` (33 nodes) for fast unit tests, and `Responsive example.fig` (534 nodes, modern prototype flow, exports of every frame) and `Prototyping in Figma.fig` (921 nodes, legacy-format prototype with overlays, scroll and device, 14 frame exports) for prototype and first render-diff tests. Use the larger files only for integration and perf tests.
 - Editing goes through `EditSession` (`fig-model/src/edit.ts`): never push to `message.nodeChanges` or change `parentIndex` by hand. Call `commit()` to measure text and re-run auto layout. In the Plugin API layer, mirror Figma's error strings (docs/figma-mcp-tools.md §5.4) and throw `FigtionalUnsupported` for anything not implemented.
 - Fonts: use only installed system fonts, with no bundled fonts. Fall back to a basic sans/serif/mono font when one is missing. Never rewrite a node's `fontName` to the fallback.
-- MIT licence. npm publishing (`figtional`) is planned but not soon.
+- MIT licence. npm publishing (`figtional`) is planned but not soon, so docs tell MCP clients to run `node <repo>/packages/cli/dist/bin.js mcp …`.
+- Ports: the asset server for `get_design_context` uses 3845 (like Figma's desktop server, falling back to a free port); the viewer defaults to 3846.
+- When behaviour or setup changes, update README.md (quick start, client configs, limitations) and PLAN.md's status table in the same commit. The README screenshot (`docs/images/viewer.png`) is the viewer showing `references/Responsive example` at 1440×860.
 - Rendering changes: run `npx vitest run packages/fig-render` (with `FIGTIONAL_RENDER_OUT=<dir>` to get renders + diff images, and `FIGTIONAL_BIG_TESTS=1` for Futurice). Don't loosen thresholds to make a regression pass.
 - Keep `fig-format` free of MCP and viewer concerns. Keep `fig-render` free of I/O so the server and viewer can share it.
