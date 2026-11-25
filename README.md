@@ -46,32 +46,43 @@ It also includes a read-only **web viewer** that shows `.fig` files the way Figm
 
 | You need | Version | Check with |
 |---|---|---|
-| [Node.js](https://nodejs.org/) (includes npm) | **22.15 or newer** (LTS 22 or 24 recommended) | `node --version` |
-| [Git](https://git-scm.com/) | any recent | `git --version` |
+| [Node.js](https://nodejs.org/) | **22.15 or newer** (the LTS version is fine) | `node --version` |
 | An MCP-capable AI client | e.g. Claude Code, Claude Desktop, Cursor or VS Code with GitHub Copilot | |
 | A Figma account | only to export `.fig` files and import edited ones | |
+| [Git](https://git-scm.com/) | only to install from source | `git --version` |
 
 Optional: install the fonts your designs use. Text that hasn't been edited always looks right, but edited or new text is measured and drawn with the fonts on your machine (missing fonts fall back to a basic font).
 
 ### 2. Install
+
+Pick one. Releases from 0.1.1 on have the downloads under **Assets** on the [Releases page](https://github.com/JoelSaarimaki/figtional-mcp/releases).
+
+**A. Download (no command line needed)**
+
+1. Download `figtional-<version>.zip`. The same zip works on Windows, macOS and Linux.
+2. Unzip it somewhere permanent, for example in your Documents folder. Your AI apps run Figtional from there, so if you move the folder later, run the setup again.
+3. Run the setup:
+   - **Windows:** double-click `Set up Figtional.cmd`.
+   - **macOS:** double-click `Set up Figtional.command`. If macOS won't open it, right-click it, choose **Open**, then **Open** again.
+   - **Linux:** run `./figtional setup` in the folder.
+4. Answer its questions: which folder holds your `.fig` files (the agent can open nothing else), whether the agent may edit them, and which apps to connect. It finds **Claude Code**, **Claude Desktop**, **Cursor** and **VS Code** and adds Figtional to each one you choose, keeping a `.bak` copy of any settings file it changes.
+5. Restart the apps you connected (in Claude Code, start a new session) and continue with [step 3](#3-export-a-fig-file-from-figma).
+
+**B. Claude Desktop extension**
+
+Download `figtional-<version>.mcpb` and double-click it, or drag it to **Settings → Extensions** in Claude Desktop. Choose your designs folder and whether Claude may edit the files, then enable the extension. Figtional needs Node.js 22.15 or newer. If the extension doesn't start because Node.js is too old, install the current LTS version from [nodejs.org](https://nodejs.org/), and if Claude Desktop has the option **Use Built-in Node.js for MCP** (Settings → Extensions → Advanced settings), turn it off.
+
+**C. From source** (for development, or the latest unreleased changes)
 
 ```bash
 git clone https://github.com/JoelSaarimaki/figtional-mcp.git
 cd figtional-mcp
 npm install
 npm run build
+npx figtional setup
 ```
 
-Check that it works:
-
-```bash
-npx figtional --version
-npx figtional --help
-```
-
-`npx figtional` works anywhere **inside** the repository folder. Figtional isn't published to npm yet, so MCP clients should start it with Node and the full path to `packages/cli/dist/bin.js`, as shown below. If you'd like a `figtional` command everywhere, run `npm link` inside `packages/cli`.
-
-After pulling new changes, run `npm install` and `npm run build` again. The `main` branch always holds the latest release; `development` has the changes for the next one.
+`npx figtional` works anywhere **inside** the repository folder; `npx figtional --help` lists the commands. The setup connects your apps to this clone. After pulling new changes, run `npm install` and `npm run build` again. The `main` branch always holds the latest release; `development` has the changes for the next one.
 
 ### 3. Export a `.fig` file from Figma
 
@@ -81,15 +92,17 @@ To bring edits back into Figma later, drag the edited `.fig` into the Figma file
 
 ### 4. Connect your AI agent
 
+**`figtional setup` (step 2) does this for you.** This section is for doing it by hand, or for clients the setup doesn't know.
+
 Figtional is an MCP server that talks over **stdio**: the AI client starts it as a command. Every client needs the same three things:
 
 - **command**: `node`
-- **args**: the full path to `packages/cli/dist/bin.js` in your clone, then `mcp`, then the files or folders the agent may use. Add `--writable` to allow edits.
+- **args**: the full path to Figtional's script, then `mcp`, then the files or folders the agent may use. Add `--writable` to allow edits, `--recursive` to include subfolders. The script is `lib/figtional.mjs` in the downloaded folder, or `packages/cli/dist/bin.js` in a clone of the repository.
 - Use **absolute paths**. In JSON on Windows, write paths with forward slashes (`C:/Users/me/designs`) or doubled backslashes.
 
-The examples use these placeholders. Replace them with your own paths:
+`figtional setup --print <folder>` prints the exact command and JSON for your computer without changing anything. The examples below use these placeholders; replace them with your own paths:
 
-- `/path/to/figtional-mcp` is where you cloned the repository, e.g. `C:/Users/me/GIT/figtional-mcp`.
+- `/path/to/figtional-mcp/packages/cli/dist/bin.js` is the script (see above), e.g. `C:/Users/me/Documents/figtional-0.1.1/lib/figtional.mjs`.
 - `/path/to/designs` is the folder with your `.fig` files.
 
 > **Keep the real Figma MCP server switched off** while you practise with Figtional, so the agent can't reach your Figma account through it. Both servers use the same tool names, so with both connected the agent could pick either.
@@ -166,13 +179,15 @@ Any MCP client that can start a stdio server works with the same command and arg
 
 ### 5. Watch the files in the viewer
 
-In a second terminal, inside the repository folder:
+In a second terminal:
 
 ```bash
-npx figtional serve /path/to/designs
+npx figtional serve --open /path/to/designs          # in a clone of the repository
+figtional.cmd serve --open C:\path\to\designs        # Windows, in the downloaded folder
+./figtional serve --open ~/path/to/designs           # macOS / Linux, in the downloaded folder
 ```
 
-Open <http://127.0.0.1:3846>. The viewer reloads whenever the agent saves a change, so you can watch edits as they happen.
+This opens <http://127.0.0.1:3846> in your browser. The viewer reloads whenever the agent saves a change, so you can watch edits as they happen.
 
 ## Using the MCP server
 
@@ -262,6 +277,7 @@ figtional serve --port 4000 ./designs/
 ## Other commands
 
 ```bash
+figtional setup                   # connect Figtional to your AI apps (see Quick start)
 figtional dump App.fig            # pages, node counts, format version
 figtional inspect App.fig 1:4     # a node as an XML outline; --json for the decoded data
 figtional validate App.fig        # format version and a byte-for-byte round-trip check
@@ -305,11 +321,12 @@ npm run build      # compile all packages
 npm test           # unit tests (run against the sources; no build needed)
 npm run lint
 npm run format
+npm run package    # the release downloads: release/figtional-<version>.zip and .mcpb
 ```
 
 - **Packages:** `fig-format` (file format), `fig-model` (document, layout, editing), `fig-render` (SVG/PNG), `mcp-server` (tools and `use_figma`), `viewer` and `cli`, all under `packages/`.
 - **Reference files.** Tests that compare against real Figma exports use a local, git-ignored `references/` folder (`.fig` files with Figma's PNG/SVG exports of their frames). Those tests skip when the files are missing.
-- **Branches and releases.** Work happens on `development`; each merge into `main` is a release with a new patch version and a `vX.Y.Z` tag. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
+- **Branches and releases.** Work happens on `development`; each merge into `main` is a release with a new patch version and a `vX.Y.Z` tag. Pushing the tag makes GitHub Actions build the downloads, test them on Windows, macOS and Linux, and publish them as a GitHub release. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 - **Contributing.** See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute and release, and [docs/compat-log.md](docs/compat-log.md) for Figma import checks.
 
 ## License

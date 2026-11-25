@@ -12,9 +12,11 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 - `figtional serve --open` opens the viewer in the browser.
 - `FIGTIONAL_WRITABLE` and `FIGTIONAL_RECURSIVE` environment variables for `figtional mcp`.
 - A clear error when Node.js is older than 22.15, instead of a module-loading error.
+- **Downloads for each release:** `figtional-<version>.zip` (one folder for Windows, macOS and Linux, with double-click setup scripts; needs only Node.js) and `figtional-<version>.mcpb` (Claude Desktop extension with a folder picker). Built by `npm run package`, smoke-tested on all three systems and published by a GitHub Actions release workflow when a version tag is pushed.
 
 ### Changed
 
+- README: the Quick start offers the download, the Claude Desktop extension and `figtional setup` before manual configuration; Git is only needed to install from source.
 - README: Limitations now lists what a `.fig` export leaves out (comments, history, sharing, live library links, Code Connect, fonts) and what it keeps.
 
 ## [0.1.0]

@@ -210,14 +210,18 @@ const cmdQuote = (a: string) => (/[\s&()^|<>"%!,;=]/.test(a) ? `"${a}"` : a);
 
 /** Runs Claude Code's CLI. On Windows a .cmd shim has to go through cmd.exe. */
 function runClaude(exe: string, args: string[]) {
+  // Run from inside a Claude Code session, the debugger settings it passes down would make the
+  // child `claude` try to open the same inspector port.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^BUN_INSPECT/i.test(k)));
   if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(exe)) {
     const line = [exe, ...args].map(cmdQuote).join(' ');
     return spawnSync(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', `"${line}"`], {
       encoding: 'utf8',
+      env,
       windowsVerbatimArguments: true,
     });
   }
-  return spawnSync(exe, args, { encoding: 'utf8' });
+  return spawnSync(exe, args, { encoding: 'utf8', env });
 }
 
 /** The `claude mcp add` command line, for people who want to run it themselves. */

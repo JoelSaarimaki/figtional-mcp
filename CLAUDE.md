@@ -34,7 +34,10 @@ npm run lint            # eslint
 npm run format          # prettier (code only; Markdown is not reformatted)
 node packages/cli/dist/bin.js dump "references/Playground/Playground.fig"
 node packages/cli/dist/bin.js mcp --recursive references     # MCP over stdio (logs go to stderr)
+npm run package         # release/figtional-<v>.zip + .mcpb (esbuild bundle + resvg binaries for every platform)
+node scripts/smoke-release.mjs <unpacked folder> references/Playground/Playground.fig
 ```
+The release bundle (`lib/figtional.mjs`) finds `../package.json` (version) and `../static/` (viewer) relative to itself, and everything except `@resvg/resvg-js` is bundled: a dependency that reads files next to its own module needs handling in `scripts/package.mjs`. Run the smoke test after adding dependencies.
 Set `FIGTIONAL_BIG_TESTS=1` for tests that use the 270 MB file. For one-off format investigations, a throwaway `*.test.ts` that decodes a reference file and `console.log`s is the quickest route (`npx vitest run <file> --reporter=verbose`); delete it afterwards.
 
 Cross-platform: the code must work on Windows, macOS and Linux. Use `node:path`/`node:fs` and no shell-specific npm scripts. Remember that file systems differ in case sensitivity. The development machine is Windows (PowerShell / Git Bash), and its paths contain non-ASCII characters (`ä`) and spaces, so always quote them.

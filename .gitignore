@@ -8,3 +8,6 @@ coverage/
 # What we learn from them goes into docs/fig-format.md and tests.
 references/
 compat-out/
+
+# Release packages (npm run package)
+release/
