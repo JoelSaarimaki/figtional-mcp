@@ -8,6 +8,7 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 
 ### Added
 
+- `use_figma`: new images with `figma.createImage(bytes)` and `figma.createImageAsync()` for `data:` URLs (Figtional makes no network requests), `getImageByHash`, `image.getSizeAsync()` / `getBytesAsync()`, and `figma.base64Encode` / `base64Decode`. New images are saved into the `.fig` file and shown in screenshots and the viewer.
 - `use_figma`: paint, text, effect and grid styles: `figma.createPaintStyle()` and friends, `getLocal*StylesAsync`, `getStyleByIdAsync`, `importStyleByKeyAsync` for styles embedded in the file, and applying them with `setFillStyleIdAsync`, `setStrokeStyleIdAsync`, `setEffectStyleIdAsync`, `setGridStyleIdAsync` and `setTextStyleIdAsync`. Layers using a style follow changes to it; setting a value directly detaches the style, as in Figma.
 - `use_figma`: explicit variable modes (`setExplicitVariableModeForCollection`, `clearExplicitVariableModeForCollection`, `explicitVariableModes`, `resolvedVariableModes`) on frames, components, component sets, instances and sections, e.g. for light and dark themes.
 

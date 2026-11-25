@@ -26,6 +26,7 @@ import { fontFallbacksIn, renderPng } from '@figtional/fig-render';
 
 import { FigtionalUnsupported } from './unsupported.js';
 import { createStyleApi } from './plugin-styles.js';
+import { imageInfo } from './image-size.js';
 
 export { FigtionalUnsupported };
 
@@ -173,6 +174,11 @@ function paintFromPlugin(doc: FigDocument, p: any, path: string): any {
     }
     out.scale = p.scalingFactor ?? 0.5;
     out.rotation = p.rotation ?? 0;
+    const info = imageInfo(doc.archive!.image(p.imageHash)!);
+    if (info) {
+      out.originalImageWidth = info.width;
+      out.originalImageHeight = info.height;
+    }
   } else {
     throw new Error(`Invalid paint type "${p.type}" at ${path}`);
   }
@@ -298,6 +304,18 @@ export function createFigmaApi(ctx: ApiContext) {
   };
   const dynamicPage = (prop: string, asyncName: string) =>
     new Error(`Cannot call ${prop} setter with documentAccess: dynamic-page. Use node.${asyncName} instead.`);
+
+  const imageApi = (hash: string) => ({
+    hash,
+    async getBytesAsync() {
+      return Uint8Array.from(doc.archive!.image(hash)!);
+    },
+    async getSizeAsync() {
+      const info = imageInfo(doc.archive!.image(hash)!);
+      if (!info) throw new Error('Image type is unsupported');
+      return { width: info.width, height: info.height };
+    },
+  });
 
   const wrap = (s: SceneNode | undefined): any => {
     if (!s) return null;
@@ -2350,13 +2368,33 @@ export function createFigmaApi(ctx: ApiContext) {
     },
     createVector: notSupportedFigtional('createVector'),
     createNodeFromSvg: notSupportedFigtional('createNodeFromSvg'),
-    createImage: notSupportedFigtional('createImage', 'Only images already in the file can be used.'),
-    createImageAsync: notSupportedFigtional(
-      'createImageAsync',
-      'Only images already in the file can be used.',
-    ),
+    createImage(data: Uint8Array) {
+      if (!ArrayBuffer.isView(data)) throw new Error('createImage expects a Uint8Array');
+      const bytes = Uint8Array.from(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
+      const info = imageInfo(bytes);
+      if (!info) throw new Error('Image type is unsupported');
+      if (info.width > 4096 || info.height > 4096) throw new Error('Image is too large');
+      if (!doc.archive) throw new FigtionalUnsupported('createImage without a .fig archive');
+      return imageApi(doc.archive.addImage(bytes));
+    },
+    async createImageAsync(src: string) {
+      const m = /^data:image\/[a-z+.-]+;base64,(.*)$/is.exec(String(src));
+      if (!m)
+        throw new FigtionalUnsupported(
+          'createImageAsync with a URL',
+          'Figtional makes no network requests. Pass the bytes to figma.createImage(), or use a data: URL.',
+        );
+      return figma.createImage(Uint8Array.from(Buffer.from(m[1]!, 'base64')));
+    },
+    base64Encode(data: Uint8Array) {
+      if (!ArrayBuffer.isView(data)) throw new Error('base64Encode expects a Uint8Array');
+      return Buffer.from(data.buffer, data.byteOffset, data.byteLength).toString('base64');
+    },
+    base64Decode(data: string) {
+      return Uint8Array.from(Buffer.from(String(data), 'base64'));
+    },
     getImageByHash(hash: string) {
-      return doc.archive?.image(hash) ? { hash } : null;
+      return doc.archive?.image(String(hash)) ? imageApi(String(hash).toLowerCase()) : null;
     },
     async importComponentByKeyAsync(key: string) {
       const c = [...doc.nodes.values()].find(

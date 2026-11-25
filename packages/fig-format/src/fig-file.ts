@@ -1,4 +1,5 @@
 import { closeSync, copyFileSync, existsSync, openSync, renameSync, rmSync, writeSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { basename, dirname, join } from 'node:path';
 import { type ByteSource, bufferSource, fileSource, toHex } from './bytes.js';
 import {
@@ -59,6 +60,8 @@ export interface DecodedCanvas {
 export class FigArchive {
   readonly zip: ZipReader;
   private metaCache: FigMeta | undefined;
+  /** Images added since opening (hash → bytes); written by the next save. */
+  readonly addedImages = new Map<string, Uint8Array>();
 
   private constructor(
     source: ByteSource,
@@ -104,14 +107,27 @@ export class FigArchive {
 
   /** Image hashes (40-char lowercase hex SHA-1) present in the archive. */
   imageHashes(): string[] {
-    return this.zip.entries
+    const stored = this.zip.entries
       .filter((e) => e.name.startsWith(IMAGES_DIR) && !e.isDirectory)
       .map((e) => e.name.slice(IMAGES_DIR.length));
+    return [...new Set([...stored, ...this.addedImages.keys()])];
+  }
+
+  /**
+   * Adds an image (kept in memory until the archive is saved) and returns its hash: the SHA-1 of
+   * the bytes as 40 lowercase hex characters, which is how Figma names files in `images/`.
+   */
+  addImage(bytes: Uint8Array): string {
+    const hash = createHash('sha1').update(bytes).digest('hex');
+    if (!this.image(hash)) this.addedImages.set(hash, bytes);
+    return hash;
   }
 
   /** Image bytes by hash (hex string or the 20 raw bytes from a Paint). */
   image(hash: string | Uint8Array): Uint8Array | undefined {
     const hex = typeof hash === 'string' ? hash.toLowerCase() : toHex(hash);
+    const added = this.addedImages.get(hex);
+    if (added) return added;
     const name = IMAGES_DIR + hex;
     return this.zip.has(name) ? this.zip.read(name) : undefined;
   }
@@ -175,7 +191,7 @@ function buildEntries(source: FigArchive, opts: WriteFigOptions): ZipWriteEntry[
   } else if (source.zip.has(META_ENTRY)) entries.push({ name: META_ENTRY, copyFrom: source.zip });
   entries.push({ name: IMAGES_DIR, data: new Uint8Array(0), method: METHOD_STORED });
   const remove = opts.removeImages ?? new Set<string>();
-  const added = opts.addImages ?? new Map<string, Uint8Array>();
+  const added = new Map([...source.addedImages, ...(opts.addImages ?? new Map<string, Uint8Array>())]);
   for (const hash of source.imageHashes()) {
     if (remove.has(hash) || added.has(hash)) continue;
     entries.push({ name: IMAGES_DIR + hash, copyFrom: source.zip });

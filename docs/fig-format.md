@@ -124,6 +124,8 @@ Sizes in the references: Playground 33 nodes / 151 blobs; TTRPG stuff 4,378 / 1,
 ```
 Colours are floats from 0 to 1. Gradient paints use `stops` and a `transform` (*assumed*, to verify).
 
+`imageThumbnail` points at a second, smaller image in `images/` (verified: its hash differs from `image`). **Writing new images (Figtional):** the bytes go to `images/<sha1 of the bytes>`; the paint gets `image` and `imageThumbnail` both pointing at that full image, plus `originalImageWidth`/`originalImageHeight` read from the PNG/JPEG/GIF header. Using the full image as its own thumbnail is *assumed* to be accepted by Figma (needs an import check).
+
 ### 4.6 Auto layout (field name → Plugin API), verified field presence
 | .fig field | Plugin API |
 |---|---|

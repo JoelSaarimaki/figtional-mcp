@@ -62,7 +62,7 @@ message VariableData { VariableAnyValue value = 1; VariableDataType dataType = 2
 message Paint {
   PaintType type = 1; Color color = 2; float opacity = 3; bool visible = 4; Image image = 5; BlendMode blendMode = 6;
   ColorStop[] stops = 7; Matrix transform = 8; VariableData colorVar = 9; Image imageThumbnail = 10; string imageScaleMode = 11;
-  float scale = 12; float rotation = 13;
+  float scale = 12; float rotation = 13; uint originalImageWidth = 14; uint originalImageHeight = 15;
 }
 message Effect { EffectType type = 1; Color color = 2; Vector offset = 3; float radius = 4; bool visible = 5; BlendMode blendMode = 6; float spread = 7; bool showShadowBehindNode = 8; }
 message FontName { string family = 1; string style = 2; string postscript = 3; }
