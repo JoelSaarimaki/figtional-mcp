@@ -238,6 +238,27 @@ describe('instance layout after property changes', () => {
     expect(text.data.derivedTextData).toBeUndefined(); // stale glyphs dropped
   });
 
+  it('measures text copied before the end of the call (clone of a fresh component)', async () => {
+    const r = await run(`${BUTTON}
+      const copy = button.clone(); copy.x = 300; copy.paddingLeft = 24; copy.paddingRight = 24;
+      const t1 = button.findOne(n => n.type === 'TEXT'), t2 = copy.findOne(n => n.type === 'TEXT');
+      return { t1: [t1.width, t1.height], t2: [t2.width, t2.height], w1: button.width, w2: copy.width, pad: button.paddingLeft + button.paddingRight };
+    `);
+    expect(r.ok, r.text).toBe(true);
+    const out = r.json();
+    expect(out.t1[0]).toBeGreaterThan(10);
+    expect(out.t2).toEqual(out.t1);
+    // Same content; only the horizontal padding changed (to 24 + 24).
+    expect(out.w2).toBeCloseTo(out.w1 - out.pad + 48, 3);
+    // And in the saved file.
+    const doc = reload();
+    const texts = [...doc.nodes.values()].filter(
+      (n) => n.type === 'TEXT' && n.textData?.characters === 'Button',
+    );
+    expect(texts.length).toBeGreaterThanOrEqual(2);
+    for (const t of texts) expect(t.size.x).toBeGreaterThan(10);
+  });
+
   it('fits component sets to their variants and names instances after the set', async () => {
     const r = await run(`${BUTTON}
       button.name = 'Size=Small';

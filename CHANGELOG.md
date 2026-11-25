@@ -9,6 +9,7 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 ### Fixed
 
 - `use_figma`: property values set on instances of a variant (`setProperties`, also after switching variant) were stored against the component set's property instead of the variant's, so Figma showed the default text and visibility after import. They are now stored the way Figma stores them.
+- `use_figma`: text copied with `clone()` in the same call it was created or edited in kept its unmeasured size (0×0 for new text), so auto layout around the copy, and a component set fitted to it, came out too small; in Figma the copy then overflowed the set. Copies are now measured like the original.
 
 ## [0.1.3]
 

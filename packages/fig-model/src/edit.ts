@@ -110,18 +110,24 @@ export class EditSession {
     const parent = parentId ?? guidToString(src.parentIndex!.guid);
     const siblings = this.doc.rawChildren(parent);
     const at = index ?? (parentId ? undefined : siblings.indexOf(src) + 1);
+    // Text edited earlier in the same call isn't measured until commit(); its copies must be too,
+    // or they keep the unmeasured size (e.g. 0×0 for new text) and auto layout around them is wrong.
+    const pendingText: string[] = [];
     const copy = (n: NodeChange, newParent: GUID, position: string): NodeChange => {
       const c = structuredClone(n);
       c.guid = this.newGuid();
       c.parentIndex = { guid: newParent, position };
       delete c.overrideKey;
       this.doc.message.nodeChanges.push(c);
+      if (n.type === 'TEXT' && this.dirtyText.has(guidToString(n.guid)))
+        pendingText.push(guidToString(c.guid));
       for (const child of this.doc.rawChildren(guidToString(n.guid)))
         copy(child, c.guid, child.parentIndex!.position);
       return c;
     };
     const root = copy(src, this.raw(parent).guid, this.positionAt(parent, at));
     this.touchStructure(parent);
+    for (const id of pendingText) this.markText(id);
     return root;
   }
 
