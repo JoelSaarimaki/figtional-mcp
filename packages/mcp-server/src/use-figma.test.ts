@@ -304,6 +304,32 @@ describe('use_figma edits', () => {
     expect(reload().getNodeById(o.id)!.data.effects[0].type).toBe('FOREGROUND_BLUR');
   });
 
+  it('serialises repeated (non-circular) references in full', async () => {
+    const r = await run(
+      `const o = { a: 1 }; const c = { self: null }; c.self = c; return { x: o, y: o, list: [o, o], c };`,
+    );
+    expect(r.ok, r.text).toBe(true);
+    expect(JSON.parse(r.text)).toEqual({
+      x: { a: 1 },
+      y: { a: 1 },
+      list: [{ a: 1 }, { a: 1 }],
+      c: { self: '[Circular]' },
+    });
+  });
+
+  it('keeps an explicitly set text layer name when the text changes (autoRename off), like Figma', async () => {
+    const r = await run(`
+      const t = figma.createText();
+      t.characters = 'First';
+      const auto = t.name;
+      t.name = 'Title';
+      t.characters = 'Second';
+      return { auto, named: t.name, autoRename: t.autoRename };
+    `);
+    expect(r.ok, r.text).toBe(true);
+    expect(JSON.parse(r.text)).toEqual({ auto: 'First', named: 'Title', autoRename: false });
+  });
+
   it('accumulates edits in --out copies and keeps the original untouched', async () => {
     const before = readFileSync(file);
     const out = join(dir, 'out');

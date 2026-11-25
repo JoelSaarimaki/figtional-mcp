@@ -10,6 +10,9 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 
 - `use_figma`: setting only one of `minWidth`/`minHeight` (or `maxWidth`/`maxHeight`) made the save fail ("missing required field Vector.y"). Unset dimensions are now stored as Figma does (0 for a minimum, Infinity for a maximum).
 - `use_figma`: `LAYER_BLUR` effects made the save fail; the file format calls them `FOREGROUND_BLUR`. Screenshots, the viewer and `get_design_context` now also show layer blurs from Figma's own files, which they ignored before.
+- `use_figma`: setting `characters` renamed a text layer even after its `name` was set explicitly. Setting `name` now turns `autoRename` off, as in Figma, and `autoRename` can be read and set.
+- `use_figma`: components and component sets had no `key`, so `importComponentByKeyAsync` couldn't find local components and instance-swap `preferredValues` lost their keys.
+- `use_figma`: an object returned twice in a result (e.g. `{ x: o, y: o }`) was shown as `[Circular]`; only real cycles are now.
 
 ### Changed
 

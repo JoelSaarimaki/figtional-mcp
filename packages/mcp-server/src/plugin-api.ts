@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 /**
  * A subset of Figma's Plugin API (`figma` global and node objects) on top of fig-model, for the
  * use_figma tool. Behaviour, names and error messages follow Figma where known
@@ -204,6 +205,20 @@ function paintFromPlugin(doc: FigDocument, p: any, path: string): any {
 /** The file stores the Plugin API's LAYER_BLUR as FOREGROUND_BLUR (EffectType in the schema). */
 const EFFECT_TYPE_TO_FILE: Record<string, string> = { LAYER_BLUR: 'FOREGROUND_BLUR' };
 const EFFECT_TYPE_TO_PLUGIN: Record<string, string> = { FOREGROUND_BLUR: 'LAYER_BLUR' };
+
+/**
+ * A component's or set's key, as importComponentByKeyAsync uses it: the library key when it has
+ * one, else a stable key derived from its guid (Figma also gives unpublished components a key).
+ */
+function componentKeyOf(n: NodeChange): string {
+  return (
+    n.componentKey ||
+    n.key ||
+    createHash('sha1')
+      .update(`figtional-component:${guidToString(n.guid)}`)
+      .digest('hex')
+  );
+}
 
 function effectToPlugin(e: any): any {
   const out: any = {
@@ -477,7 +492,9 @@ export function createFigmaApi(ctx: ApiContext) {
       return this._s.name;
     }
     set name(v: string) {
-      editRaw(this.id, { name: String(v) });
+      // In Figma, naming a text layer stops it from following its content (autoRename = false).
+      const fixed = this.type === 'TEXT' && !scene(this.id).isInstanceSublayer;
+      editRaw(this.id, fixed ? { name: String(v), autoRename: false } : { name: String(v) });
     }
     get removed(): boolean {
       return !doc.getNodeById(this.id);
@@ -1190,6 +1207,19 @@ export function createFigmaApi(ctx: ApiContext) {
     // ------------------------------------------------ text
     private requireText(prop: string) {
       if (this.type !== 'TEXT') throw typeError(prop, this.type);
+    }
+    get autoRename(): boolean {
+      this.requireText('autoRename');
+      return this._d.autoRename !== false;
+    }
+    set autoRename(v: boolean) {
+      this.requireText('autoRename');
+      editRaw(this.id, { autoRename: !!v });
+    }
+    // ------------------------------------------------ component keys
+    get key(): string {
+      if (this.type !== 'COMPONENT' && this.type !== 'COMPONENT_SET') throw typeError('key', this.type);
+      return componentKeyOf(this._d);
     }
     get characters() {
       this.requireText('characters');
@@ -2643,9 +2673,7 @@ export function createFigmaApi(ctx: ApiContext) {
       return doc.archive?.image(String(hash)) ? imageApi(String(hash).toLowerCase()) : null;
     },
     async importComponentByKeyAsync(key: string) {
-      const c = [...doc.nodes.values()].find(
-        (n) => n.type === 'SYMBOL' && (n.componentKey === key || n.key === key),
-      );
+      const c = [...doc.nodes.values()].find((n) => n.type === 'SYMBOL' && componentKeyOf(n) === key);
       if (!c)
         throw new FigtionalUnsupported(
           `importComponentByKeyAsync('${key}')`,
@@ -2654,9 +2682,7 @@ export function createFigmaApi(ctx: ApiContext) {
       return wrap(scene(guidToString(c.guid)));
     },
     async importComponentSetByKeyAsync(key: string) {
-      const c = [...doc.nodes.values()].find(
-        (n) => n.isStateGroup && (n.componentKey === key || n.key === key),
-      );
+      const c = [...doc.nodes.values()].find((n) => n.isStateGroup && componentKeyOf(n) === key);
       if (!c)
         throw new FigtionalUnsupported(
           `importComponentSetByKeyAsync('${key}')`,

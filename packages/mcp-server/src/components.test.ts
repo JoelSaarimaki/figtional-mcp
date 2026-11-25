@@ -98,6 +98,24 @@ describe('component properties', () => {
   });
 });
 
+describe('component keys', () => {
+  it('gives components and sets a key that imports them and survives in preferredValues', async () => {
+    const r = await run(`${BUTTON}
+      const star = figma.createComponent(); star.name = 'Icon/Star';
+      const key = star.key;
+      const imported = await figma.importComponentByKeyAsync(key);
+      const swapKey = button.addComponentProperty('Icon', 'INSTANCE_SWAP', star.id,
+        { preferredValues: [{ type: 'COMPONENT', key }] });
+      return { key, same: imported.id === star.id, preferred: button.componentPropertyDefinitions[swapKey].preferredValues };
+    `);
+    expect(r.ok, r.text).toBe(true);
+    const o = r.json();
+    expect(o.key).toMatch(/^[0-9a-f]{40}$/);
+    expect(o.same).toBe(true);
+    expect(o.preferred).toEqual([{ type: 'COMPONENT', key: o.key }]);
+  });
+});
+
 describe('variants', () => {
   const SET = `${BUTTON}
     button.name = 'Size=Small';

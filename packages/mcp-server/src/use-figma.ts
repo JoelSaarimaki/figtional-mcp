@@ -44,30 +44,36 @@ function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
 
 function serialise(value: unknown): string {
   if (value === undefined) return 'undefined';
-  const seen = new WeakSet();
-  return (
-    JSON.stringify(
-      value,
-      (_k, v) => {
-        if (typeof v === 'symbol') return v.description === 'figma.mixed' ? 'mixed' : String(v);
-        if (typeof v === 'bigint') return v.toString();
-        if (v && typeof v === 'object') {
-          if (seen.has(v)) return '[Circular]';
-          seen.add(v);
-          // Node objects serialise to a short reference, like Figma's own JSON output.
-          if (typeof v.id === 'string' && typeof v.type === 'string' && 'parent' in v) {
-            try {
-              return { id: v.id, name: v.name, type: v.type };
-            } catch {
-              return { id: v.id };
-            }
-          }
-        }
-        return v;
-      },
-      2,
-    ) ?? 'null'
-  );
+  // Only a reference back to an ancestor is circular; the same object appearing twice is not.
+  const path = new Set<object>();
+  const plain = (v: any): any => {
+    if (typeof v === 'symbol') return v.description === 'figma.mixed' ? 'mixed' : String(v);
+    if (typeof v === 'bigint') return v.toString();
+    if (!v || typeof v !== 'object') return v;
+    if (path.has(v)) return '[Circular]';
+    // Node objects serialise to a short reference, like Figma's own JSON output.
+    if (typeof v.id === 'string' && typeof v.type === 'string' && 'parent' in v) {
+      try {
+        return { id: v.id, name: v.name, type: v.type };
+      } catch {
+        return { id: v.id };
+      }
+    }
+    if (typeof v.toJSON === 'function') return plain(v.toJSON());
+    path.add(v);
+    try {
+      if (Array.isArray(v) || ArrayBuffer.isView(v)) return Array.from(v as ArrayLike<unknown>, plain);
+      const out: Record<string, unknown> = {};
+      for (const k of Object.keys(v)) {
+        const x = plain(v[k]);
+        if (x !== undefined && typeof x !== 'function') out[k] = x;
+      }
+      return out;
+    } finally {
+      path.delete(v);
+    }
+  };
+  return JSON.stringify(plain(value), null, 2) ?? 'null';
 }
 
 export async function runUseFigma(
