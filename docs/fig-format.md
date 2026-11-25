@@ -216,6 +216,7 @@ The stored `size` and `transform` already contain the **resolved** layout, so un
 - **`guidPath`:** `[a]` targets node `a` anywhere in the component (**intermediate frames are not listed**); `[a, b]` targets `b` inside nested instance `a`. The path lists only the nested instances on the way, plus the target. An override with the path `[<symbolID>]` (the component itself) also appears (seen with `size`).
 - **Ids in paths are override ids** (verified, Futurice): nodes of components **copied from a library** carry `overrideKey` (their id in the library), and `guidPath` and `derivedSymbolData` use it instead of the local guid. Local components have no `overrideKey`, so their guid is used. `fig-model`'s `overrideId(node)` implements this; before it, every override on a library component was silently ignored.
 - **Precedence** (implemented, *assumed* correct): component values < overrides stored on the nested instance itself < overrides from enclosing instances < `derivedSymbolData` (Figma's laid-out `size`, `transform`, `fillGeometry`, `strokeGeometry`, `derivedTextData`).
+- **Instance roots** (verified, TTRPG): an instance stores a copy of its component's root fields; of 2,225 instances, every root value that differs from the component (e.g. 36 `strokePaints`, 5 paddings) also has an override at guidPath `[<symbolID>]`.
 - Override fields seen (TTRPG): `size`, `textData`, `stackPrimarySizing`/`stackCounterSizing`, `componentPropAssignments`, `overriddenSymbolID` (**instance swap**), `fontSize`, `fontName`, `strokePaints`, `fillPaints`, `visible`, corner radii, paddings, `styleIdForText`, `overrideLevel`, text layout versions.
 - **Plugin API ids** of instance sublayers: `I<instance id>;<override id>`, one more `;<id>` per nested instance (e.g. `I1:2;3:4;5:6`). Intermediate frames add no segments; same ids as in `guidPath`.
 
@@ -239,6 +240,7 @@ The stored `size` and `transform` already contain the **resolved** layout, so un
 - A component missing from the file is drawn as a labelled placeholder, with no attempt to approximate it.
 - When an instance switches variant, its values are re-keyed to the new variant's stubs.
 - Text bound to a property is changed by setting the property value on the instance that owns it, because property values take precedence over overrides. Other changes inside instances become `symbolOverrides` entries.
+- Instance roots: an instance's own root value (fills, padding, radius…; `INSTANCE_FIELDS` in `fig-model`) is also recorded as an override at guidPath [component id], as in Figma's files (§8.1: in TTRPG every root value that differs from the component has such an override). A component's root change is copied to instances that don't override that field; a swap copies the new component's root fields. A swapped nested instance is expanded with the new component's root fields unless overridden.
 - After changing instance content, Figtional re-lays it out and writes `derivedSymbolData` entries itself (empty `fillGeometry`/`strokeGeometry` for resized shapes, no `derivedTextData` for changed text).
 
 ## 9. Variables, verified

@@ -15,6 +15,7 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 - `use_figma`: an object returned twice in a result (e.g. `{ x: o, y: o }`) was shown as `[Circular]`; only real cycles are now.
 - `use_figma`: binding a single corner radius (`topLeftRadius` etc.) to a variable left the corner at 0, and other bound numbers took the default mode's value. Bound values are now applied in the mode in effect at the layer.
 - `use_figma`: STRING and BOOLEAN variables (e.g. bound text and visibility) didn't follow explicit mode changes; only colours did. All bound values now follow the mode.
+- Instances didn't follow root changes of their main component (fills, padding, corner radius…), and `swapComponent` or an instance-swap property kept the old component's root fills. Instances now take their component's root values except where they override them, recorded the way Figma stores instance overrides.
 
 ### Changed
 

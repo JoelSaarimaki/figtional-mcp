@@ -28,6 +28,7 @@ import {
   subpathsToNetwork,
   transformSubpaths,
   textDataOf,
+  INSTANCE_FIELDS,
 } from '@figtional/fig-model';
 import { fontFallbacksIn, renderPng } from '@figtional/fig-render';
 
@@ -270,6 +271,52 @@ export function createFigmaApi(ctx: ApiContext) {
     Object.assign(raw, fields);
     if (opts.text) session.markText(id);
     else session.markDirty(id);
+    const rootFields = Object.keys(fields).filter((f) => (INSTANCE_FIELDS as readonly string[]).includes(f));
+    if (!rootFields.length) return;
+    // An instance's own root value is an override at guidPath [component id], as Figma stores it.
+    if (raw.type === 'INSTANCE') recordRootOverride(raw, rootFields);
+    // A component's root value reaches its instances, except where they override it.
+    if (raw.type === 'SYMBOL') propagateRootFields(raw, rootFields);
+  };
+
+  const rootOverrideOf = (inst: NodeChange, create: boolean): any => {
+    const sym = inst.symbolData?.symbolID;
+    if (!sym) return undefined;
+    const list: any[] = inst.symbolData.symbolOverrides ?? [];
+    let entry = list.find(
+      (o) => o.guidPath?.guids?.length === 1 && guidToString(o.guidPath.guids[0]) === guidToString(sym),
+    );
+    if (!entry && create) {
+      entry = { guidPath: { guids: [{ ...sym }] } };
+      inst.symbolData = { ...inst.symbolData, symbolOverrides: [...list, entry] };
+    }
+    return entry;
+  };
+  const recordRootOverride = (inst: NodeChange, fields: string[]) => {
+    const entry = rootOverrideOf(inst, true);
+    if (!entry) return;
+    for (const f of fields) entry[f] = structuredClone(inst[f]);
+  };
+  const propagateRootFields = (symbol: NodeChange, fields: string[]) => {
+    const symId = guidToString(symbol.guid);
+    for (const n of doc.message.nodeChanges) {
+      if (
+        n.type !== 'INSTANCE' ||
+        guidToString(n.symbolData?.symbolID ?? symbol.guid) !== symId ||
+        n === symbol
+      )
+        continue;
+      if (!n.symbolData?.symbolID) continue;
+      const overridden = rootOverrideOf(n, false) ?? {};
+      let changed = false;
+      for (const f of fields) {
+        if (f in overridden) continue;
+        if (symbol[f] !== undefined) n[f] = structuredClone(symbol[f]);
+        else delete n[f];
+        changed = true;
+      }
+      if (changed) session.markDirty(guidToString(n.guid));
+    }
   };
 
   /** Figma lays out immediately; apply pending layout before geometry is read. */

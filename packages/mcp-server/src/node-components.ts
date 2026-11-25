@@ -109,6 +109,8 @@ export function componentsMembers(rt: PluginRuntime) {
         symbolOverrides: [],
       };
       delete raw.derivedSymbolData;
+      // The instance now looks like the new component at its root too (keeping its position).
+      copyInstanceFields(raw, session.raw(component.id));
       session.markDirty(this.id);
     }
     setProperties(props: Record<string, unknown>) {

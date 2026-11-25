@@ -116,6 +116,52 @@ describe('component keys', () => {
   });
 });
 
+describe('instance roots', () => {
+  const TWO = `
+    const mk = (name, color) => { const c = figma.createComponent(); c.name = name; c.layoutMode = 'HORIZONTAL';
+      c.primaryAxisSizingMode = 'AUTO'; c.counterAxisSizingMode = 'AUTO'; c.paddingLeft = 8;
+      c.fills = [{ type: 'SOLID', color }]; const r = figma.createRectangle(); r.resize(10, 10); c.appendChild(r); return c; };
+    const on = mk('On', { r: 0, g: 1, b: 0 });
+    const off = mk('Off', { r: 0.5, g: 0.5, b: 0.5 });
+  `;
+
+  it('follow their main component except where they override it, as Figma stores it', async () => {
+    const r = await run(`${TWO}
+      const plain = on.createInstance();
+      const custom = on.createInstance();
+      custom.paddingLeft = 2;
+      on.paddingLeft = 40;
+      on.fills = [{ type: 'SOLID', color: { r: 1, g: 0, b: 0 } }];
+      return { plain: [plain.paddingLeft, plain.width, plain.fills[0].color.r], custom: [custom.paddingLeft, custom.fills[0].color.r], id: custom.id };
+    `);
+    expect(r.ok, r.text).toBe(true);
+    const o = r.json();
+    expect(o.plain).toEqual([40, 50, 1]);
+    expect(o.custom).toEqual([2, 1]); // own padding kept, fill still inherited
+    // The override is recorded at guidPath [component id].
+    const custom = reload().getNodeById(o.id)!;
+    const [entry] = custom.data.symbolData.symbolOverrides;
+    expect(guidToString(entry.guidPath.guids[0])).toBe(guidToString(custom.data.symbolData.symbolID));
+    expect(entry.stackHorizontalPadding).toBe(2);
+  });
+
+  it("take the new component's root on swapComponent and instance swap", async () => {
+    const r = await run(`${TWO}
+      const i = on.createInstance();
+      i.swapComponent(off);
+      const holder = figma.createComponent();
+      const nested = on.createInstance(); holder.appendChild(nested);
+      const key = holder.addComponentProperty('Toggle', 'INSTANCE_SWAP', on.id);
+      nested.componentPropertyReferences = { mainComponent: key };
+      const h = holder.createInstance();
+      h.setProperties({ [key]: off.id });
+      return { swapped: i.fills[0].color.g, nested: h.children[0].fills[0].color.g };
+    `);
+    expect(r.ok, r.text).toBe(true);
+    expect(r.json()).toEqual({ swapped: 0.5, nested: 0.5 });
+  });
+});
+
 describe('variants', () => {
   const SET = `${BUTTON}
     button.name = 'Size=Small';
