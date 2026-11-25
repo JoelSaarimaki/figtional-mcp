@@ -298,7 +298,8 @@ export class EditSession {
   }
 
   /**
-   * Resizes and moves every group above a dirty node to the bounds of its visible children, as
+   * Resizes and moves every group (and boolean operation) above a dirty node to the bounds of its
+   * visible children, as
    * Figma does: the group's transform moves to the new corner and the children shift back, so
    * nothing moves on the canvas. Deeper groups go first, as their size feeds their parents.
    */
@@ -311,7 +312,7 @@ export class EditSession {
         n;
         n = n.parentIndex ? this.doc.nodes.get(guidToString(n.parentIndex.guid)) : undefined, depth++
       ) {
-        if (isGroupData(n)) {
+        if (isGroupData(n) || n.type === 'BOOLEAN_OPERATION') {
           const key = guidToString(n.guid);
           const prev = groups.get(key);
           if (!prev || prev.depth < depth) groups.set(key, { n, depth });
@@ -327,13 +328,29 @@ export class EditSession {
       let minY = Infinity;
       let maxX = -Infinity;
       let maxY = -Infinity;
-      for (const c of kids) {
-        const b = transformedBounds(c.transform ?? IDENTITY, c.size?.x ?? 0, c.size?.y ?? 0);
+      const boxes = kids.map((c) =>
+        transformedBounds(c.transform ?? IDENTITY, c.size?.x ?? 0, c.size?.y ?? 0),
+      );
+      // Boolean results (assumed, Figma recomputes them on import): SUBTRACT keeps the first
+      // operand's bounds and INTERSECT the overlap of all operands; groups and the other operations
+      // span all children.
+      const op = g.type === 'BOOLEAN_OPERATION' ? (g.booleanOperation ?? 'UNION') : 'UNION';
+      const used = op === 'SUBTRACT' ? boxes.slice(0, 1) : boxes;
+      for (const b of used) {
+        if (op === 'INTERSECT' && minX !== Infinity) {
+          minX = Math.max(minX, b.x);
+          minY = Math.max(minY, b.y);
+          maxX = Math.min(maxX, b.x + b.width);
+          maxY = Math.min(maxY, b.y + b.height);
+          continue;
+        }
         minX = Math.min(minX, b.x);
         minY = Math.min(minY, b.y);
         maxX = Math.max(maxX, b.x + b.width);
         maxY = Math.max(maxY, b.y + b.height);
       }
+      if (maxX < minX) maxX = minX;
+      if (maxY < minY) maxY = minY;
       const w = maxX - minX;
       const h = maxY - minY;
       const moved = Math.abs(minX) > 1e-6 || Math.abs(minY) > 1e-6;

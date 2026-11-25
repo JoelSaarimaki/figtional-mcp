@@ -10,3 +10,4 @@ export * from './edit.js';
 export * from './components.js';
 export * from './vector-path.js';
 export * from './svg-import.js';
+export * from './outline.js';

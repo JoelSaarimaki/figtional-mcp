@@ -9,6 +9,7 @@ import {
   type VectorNetwork,
   decodePathCommands,
   decodeVectorNetwork,
+  guidToString,
   pathCommandsToSvg,
 } from '@figtional/fig-format';
 import {
@@ -24,6 +25,10 @@ import {
   styleWeight,
   applyTextCase,
   textRunPath,
+  outlineOf,
+  subpathsToPathData,
+  transformSubpaths,
+  IDENTITY,
 } from '@figtional/fig-model';
 
 export interface RenderOptions {
@@ -625,6 +630,70 @@ function renderNode(b: SvgBuilder, node: SceneNode, transform: Matrix): string {
   }
 }
 
+/**
+ * Fill of a boolean operation that has no stored geometry, built from its operands' outlines:
+ * UNION draws them all, EXCLUDE uses the even-odd rule, SUBTRACT masks the first operand with the
+ * others and INTERSECT nests one mask per operand. Strokes of such a result are not drawn.
+ */
+function booleanPaint(b: SvgBuilder, n: NodeChange): string {
+  const op = n.booleanOperation ?? 'UNION';
+  const operands = b.doc
+    .rawChildren(guidToString(n.guid))
+    .filter((c) => c.visible !== false)
+    .map((c) =>
+      outlineOf(b.doc, c).map((o) => ({
+        d: subpathsToPathData(transformSubpaths(o.paths, c.transform ?? IDENTITY)),
+        rule: o.rule,
+      })),
+    )
+    .filter((o) => o.length);
+  if (!operands.length) return '';
+  const w = n.size?.x ?? 0;
+  const h = n.size?.y ?? 0;
+  const els = (os: { d: string; rule: string }[], fill: string) =>
+    os
+      .map((o) => `<path d="${o.d}" fill="${fill}"${o.rule === 'ODD' ? ' fill-rule="evenodd"' : ''}/>`)
+      .join('');
+  const mask = (content: string) => {
+    const id = b.id('bm');
+    // The node's bounds contain the result (resvg drops masks over huge areas).
+    b.def(
+      `<mask id="${id}" maskUnits="userSpaceOnUse" x="-1" y="-1" width="${fmt(w + 2)}" height="${fmt(h + 2)}">${content}</mask>`,
+    );
+    return id;
+  };
+  const out: string[] = [];
+  for (const p of (n.fillPaints ?? []).filter((x: any) => x.visible !== false)) {
+    const f = b.paintFill(p, w, h);
+    if (!f) continue;
+    const op1 = f.opacity < 1 ? ` opacity="${fmt(f.opacity)}"` : '';
+    const area = `<rect x="-1" y="-1" width="${fmt(w + 2)}" height="${fmt(h + 2)}" fill="${f.fill}"/>`;
+    if (op === 'UNION') out.push(`<g${op1}>${operands.map((o) => els(o, f.fill)).join('')}</g>`);
+    else if (op === 'XOR' || op === 'EXCLUDE')
+      out.push(
+        `<path d="${operands
+          .flat()
+          .map((o) => o.d)
+          .join('')}" fill="${f.fill}" fill-rule="evenodd"${op1}/>`,
+      );
+    else if (op === 'SUBTRACT') {
+      const id = mask(
+        els(operands[0]!, '#fff') +
+          operands
+            .slice(1)
+            .map((o) => els(o, '#000'))
+            .join(''),
+      );
+      out.push(`<g mask="url(#${id})"${op1}>${area}</g>`);
+    } else {
+      let g = area;
+      for (const o of operands) g = `<g mask="url(#${mask(els(o, '#fff'))})">${g}</g>`;
+      out.push(op1 ? `<g${op1}>${g}</g>` : g);
+    }
+  }
+  return out.join('');
+}
+
 function renderNodeInner(b: SvgBuilder, node: SceneNode, transform: Matrix): string {
   const n = node.data;
   if (!node.visible) return '';
@@ -642,6 +711,8 @@ function renderNodeInner(b: SvgBuilder, node: SceneNode, transform: Matrix): str
     );
   } else {
     inner.push(ownPaint(b, n));
+    // A boolean operation without stored geometry (created by Figtional) is drawn from its operands.
+    if (n.type === 'BOOLEAN_OPERATION' && !(n.fillGeometry ?? []).length) inner.push(booleanPaint(b, n));
     // Boolean operation children are operands, already merged into its geometry.
     if (n.type !== 'BOOLEAN_OPERATION') {
       const kids = renderChildren(b, node);

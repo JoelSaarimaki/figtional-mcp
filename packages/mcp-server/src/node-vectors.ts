@@ -7,6 +7,24 @@ import { NodeMembers, type PluginRuntime } from './plugin-runtime.js';
 export function vectorsMembers(rt: PluginRuntime) {
   const { dynamicPage, editRaw, networkOf, session, typeError, vectorFields } = rt;
   return class VectorsMembers extends NodeMembers {
+    // ------------------------------------------------ boolean operations
+    get booleanOperation(): string {
+      if (this.type !== 'BOOLEAN_OPERATION') throw typeError('booleanOperation', this.type);
+      const op = this._d.booleanOperation ?? 'UNION';
+      return op === 'XOR' ? 'EXCLUDE' : op;
+    }
+    set booleanOperation(v: string) {
+      if (this.type !== 'BOOLEAN_OPERATION') throw typeError('booleanOperation', this.type);
+      if (!['UNION', 'INTERSECT', 'SUBTRACT', 'EXCLUDE'].includes(v))
+        throw new Error(`Invalid booleanOperation "${v}"`);
+      // A changed operation invalidates Figma's stored result.
+      editRaw(this.id, {
+        booleanOperation: v === 'EXCLUDE' ? 'XOR' : v,
+        fillGeometry: [],
+        strokeGeometry: [],
+      });
+    }
+
     // ------------------------------------------------ vectors
     requireVector(prop: string) {
       if (this.type !== 'VECTOR') throw typeError(prop, this.type);

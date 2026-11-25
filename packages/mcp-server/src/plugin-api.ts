@@ -33,6 +33,7 @@ import {
   multiply,
   transformedBounds,
   isGroupData,
+  outlineOf,
 } from '@figtional/fig-model';
 import { fontFallbacksIn, renderPng } from '@figtional/fig-render';
 
@@ -820,6 +821,98 @@ export function createFigmaApi(ctx: ApiContext) {
     variablesMembers(rt),
   );
 
+  /**
+   * Wraps layers in a new parent node (group or boolean operation) without moving them on the
+   * canvas; the new node starts at the layers' bounds (the end-of-call fitting refines it).
+   */
+  const wrapNodes = (
+    fn: string,
+    nodes: any[],
+    parent: any,
+    index: number | undefined,
+    makeFields: (items: SceneNode[]) => Record<string, unknown>,
+    type = 'FRAME',
+  ) => {
+    if (!Array.isArray(nodes) || !nodes.length)
+      throw new Error(`First argument to ${fn}() must be an array of at least one node`);
+    const parentId: string = parent?.id ?? pageId();
+    const p = scene(parentId);
+    const items = nodes.map((n) => {
+      if (!n?.id || !doc.getNodeById(n.id)) throw new Error('Expected a node');
+      const s = scene(n.id);
+      if (s.isInstanceSublayer) throw new Error('Cannot group a layer inside an instance');
+      if (s.figType === 'CANVAS' || s.figType === 'DOCUMENT') throw new Error('Cannot group a page');
+      return s;
+    });
+    // Keep the layers' stacking order when they share a parent.
+    items.sort((a, b) =>
+      a.parent === b.parent
+        ? (a.data.parentIndex?.position ?? '') < (b.data.parentIndex?.position ?? '')
+          ? -1
+          : 1
+        : 0,
+    );
+    // Each layer's transform in the new parent's space, and the bounds of them all.
+    const toParent = invert(p.figType === 'CANVAS' ? IDENTITY_T : p.absoluteTransform);
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    const rel = items.map((s) => {
+      const m = multiply(toParent, s.absoluteTransform);
+      const b = transformedBounds(m, s.width, s.height);
+      minX = Math.min(minX, b.x);
+      minY = Math.min(minY, b.y);
+      maxX = Math.max(maxX, b.x + b.width);
+      maxY = Math.max(maxY, b.y + b.height);
+      return m;
+    });
+    const g = session.create(type, parentId, index, {
+      visible: true,
+      opacity: 1,
+      size: { x: maxX - minX, y: maxY - minY },
+      transform: { ...IDENTITY_T, m02: minX, m12: minY },
+      ...makeFields(items),
+    });
+    const gid = guidToString(g.guid);
+    items.forEach((s, i) => {
+      session.move(s.id, gid);
+      const m = rel[i]!;
+      session.raw(s.id).transform = { ...m, m02: m.m02 - minX, m12: m.m12 - minY };
+      session.markDirty(s.id);
+    });
+    return wrap(scene(gid));
+  };
+
+  const BOOLEAN_NAMES: Record<string, string> = {
+    UNION: 'Union',
+    SUBTRACT: 'Subtract',
+    INTERSECT: 'Intersect',
+    EXCLUDE: 'Exclude',
+  };
+  /** A boolean operation takes the fill and stroke of its bottom-most layer, as in Figma. */
+  const booleanOp = (op: string, nodes: any[], parent: any, index: number | undefined) =>
+    wrapNodes(
+      op.toLowerCase(),
+      nodes,
+      parent,
+      index,
+      (items) => {
+        const bottom = items[0]!.data;
+        return {
+          name: BOOLEAN_NAMES[op]!,
+          strokeWeight: bottom.strokeWeight ?? 1,
+          strokeAlign: bottom.strokeAlign ?? 'INSIDE',
+          strokeJoin: bottom.strokeJoin ?? 'MITER',
+          fillPaints: structuredClone(bottom.fillPaints ?? []),
+          ...(bottom.strokePaints?.length ? { strokePaints: structuredClone(bottom.strokePaints) } : {}),
+          // The file's BooleanOperation enum calls EXCLUDE "XOR".
+          booleanOperation: op === 'EXCLUDE' ? 'XOR' : op,
+        };
+      },
+      'BOOLEAN_OPERATION',
+    );
+
   const { variables } = createVariablesApi(rt);
 
   const figma: any = {
@@ -958,60 +1051,65 @@ export function createFigmaApi(ctx: ApiContext) {
       return wrap(scene(guidToString(set.guid)));
     },
     group(nodes: any[], parent: any, index?: number) {
-      if (!Array.isArray(nodes) || !nodes.length)
-        throw new Error('First argument to group() must be an array of at least one node');
-      const parentId: string = parent?.id ?? pageId();
-      const p = scene(parentId);
-      const items = nodes.map((n) => {
-        if (!n?.id || !doc.getNodeById(n.id)) throw new Error('Expected a node');
-        const s = scene(n.id);
-        if (s.isInstanceSublayer) throw new Error('Cannot group a layer inside an instance');
-        if (s.figType === 'CANVAS' || s.figType === 'DOCUMENT') throw new Error('Cannot group a page');
-        return s;
-      });
-      // Keep the layers' stacking order when they share a parent.
-      items.sort((a, b) =>
-        a.parent === b.parent
-          ? (a.data.parentIndex?.position ?? '') < (b.data.parentIndex?.position ?? '')
-            ? -1
-            : 1
-          : 0,
-      );
-      // Each layer's transform in the new parent's space, and the bounds of them all.
-      const toParent = invert(p.figType === 'CANVAS' ? IDENTITY_T : p.absoluteTransform);
-      let minX = Infinity;
-      let minY = Infinity;
-      let maxX = -Infinity;
-      let maxY = -Infinity;
-      const rel = items.map((s) => {
-        const m = multiply(toParent, s.absoluteTransform);
-        const b = transformedBounds(m, s.width, s.height);
-        minX = Math.min(minX, b.x);
-        minY = Math.min(minY, b.y);
-        maxX = Math.max(maxX, b.x + b.width);
-        maxY = Math.max(maxY, b.y + b.height);
-        return m;
-      });
-      const g = session.create('FRAME', parentId, index, {
+      return wrapNodes('group', nodes, parent, index, () => ({
         name: defaultName('GROUP'),
-        visible: true,
-        opacity: 1,
-        size: { x: maxX - minX, y: maxY - minY },
-        transform: { ...IDENTITY_T, m02: minX, m12: minY },
         strokeWeight: 1,
         strokeAlign: 'INSIDE',
         strokeJoin: 'MITER',
         frameMaskDisabled: false,
         resizeToFit: true,
+      }));
+    },
+    union(nodes: any[], parent: any, index?: number) {
+      return booleanOp('UNION', nodes, parent, index);
+    },
+    subtract(nodes: any[], parent: any, index?: number) {
+      return booleanOp('SUBTRACT', nodes, parent, index);
+    },
+    intersect(nodes: any[], parent: any, index?: number) {
+      return booleanOp('INTERSECT', nodes, parent, index);
+    },
+    exclude(nodes: any[], parent: any, index?: number) {
+      return booleanOp('EXCLUDE', nodes, parent, index);
+    },
+    flatten(nodes: any[], parent?: any, index?: number) {
+      if (!Array.isArray(nodes) || !nodes.length)
+        throw new Error('First argument to flatten() must be an array of at least one node');
+      const items = nodes.map((n) => {
+        if (!n?.id || !doc.getNodeById(n.id)) throw new Error('Expected a node');
+        const s = scene(n.id);
+        if (s.isInstanceSublayer) throw new Error('Cannot flatten a layer inside an instance');
+        return s;
       });
-      const gid = guidToString(g.guid);
-      items.forEach((s, i) => {
-        session.move(s.id, gid);
-        const m = rel[i]!;
-        session.raw(s.id).transform = { ...m, m02: m.m02 - minX, m12: m.m12 - minY };
-        session.markDirty(s.id);
+      const first = items[0]!;
+      const parentScene = parent?.id ? scene(parent.id) : first.parent!;
+      const at =
+        index ?? Math.max(...items.map((s) => parentScene.children.findIndex((c) => c.id === s.id))) + 1;
+      const toParent = invert(parentScene.figType === 'CANVAS' ? IDENTITY_T : parentScene.absoluteTransform);
+      const paths: Subpath[] = [];
+      let rule: 'NONZERO' | 'ODD' = 'NONZERO';
+      for (const s of items) {
+        const m = multiply(toParent, s.absoluteTransform);
+        for (const o of outlineOf(doc, s.data)) {
+          paths.push(...transformSubpaths(o.paths, m));
+          if (o.rule === 'ODD') rule = 'ODD';
+        }
+      }
+      if (!paths.length) throw new Error('Nothing to flatten: the layers have no outline');
+      const bottom = first.data;
+      const v = session.create('VECTOR', parentScene.id, at, {
+        name: 'Vector',
+        visible: true,
+        opacity: 1,
+        ...vectorFields(paths, rule),
+        strokeWeight: bottom.strokeWeight ?? 0,
+        strokeAlign: bottom.strokeAlign ?? 'CENTER',
+        strokeJoin: bottom.strokeJoin ?? 'MITER',
+        fillPaints: structuredClone(bottom.fillPaints ?? []),
+        strokePaints: structuredClone(bottom.strokePaints ?? []),
       });
-      return wrap(scene(gid));
+      for (const s of items) session.remove(s.id);
+      return wrap(scene(guidToString(v.guid)));
     },
     ungroup(node: any) {
       const s = node?.id ? scene(node.id) : undefined;
