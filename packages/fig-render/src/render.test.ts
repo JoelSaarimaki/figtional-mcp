@@ -15,7 +15,8 @@ describe('renderSvg (synthetic)', () => {
     expect(svg).toContain('width="390" height="800" viewBox="0 0 390 800"');
     expect(svg).toContain('fill="#ffffff"'); // frame fill
     expect(svg).toContain('<pattern'); // image fill of "Photo"
-    expect(svg).toContain('>Hello</tspan>'); // text without stored layout → installed fonts
+    // Text without stored layout is drawn as outlines of an installed font (or SVG text if none).
+    expect(svg).toMatch(/<g transform="translate\(20 100\)"><path d="M[^"]+" fill="#000"\/>|>Hello<\/tspan>/);
     expect(svg).toContain('clip-path='); // frames clip their content
   });
 

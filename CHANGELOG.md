@@ -16,6 +16,8 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 - `use_figma`: binding a single corner radius (`topLeftRadius` etc.) to a variable left the corner at 0, and other bound numbers took the default mode's value. Bound values are now applied in the mode in effect at the layer.
 - `use_figma`: STRING and BOOLEAN variables (e.g. bound text and visibility) didn't follow explicit mode changes; only colours did. All bound values now follow the mode.
 - Instances didn't follow root changes of their main component (fills, padding, corner radius…), and `swapComponent` or an instance-swap property kept the old component's root fills. Instances now take their component's root values except where they override them, recorded the way Figma stores instance overrides.
+- Fonts installed as one variable font file (e.g. Inter 4) were used at their default weight only, so Semi Bold or Bold text was measured and drawn as Regular. Their named weights are now used.
+- Screenshots and the viewer now draw new and edited text with its styled ranges (fills, fonts, sizes, underline and strikethrough) and its text case (e.g. `UPPER`, also when measuring), and draw dashed strokes; `get_design_context` outputs dashed borders.
 
 ### Changed
 

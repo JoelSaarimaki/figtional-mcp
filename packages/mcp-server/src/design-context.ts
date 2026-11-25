@@ -299,6 +299,7 @@ class Builder {
     if (strokes.length && (d.strokeWeight ?? 0) > 0) {
       const color = this.colorValue(strokes[strokes.length - 1]);
       const w = d.strokeWeight ?? 1;
+      const lineStyle = (d.dashPattern ?? []).length ? 'dashed' : 'solid';
       if (d.borderStrokeWeightsIndependent) {
         for (const [side, v] of [
           ['top', d.borderTopWeight],
@@ -306,12 +307,12 @@ class Builder {
           ['bottom', d.borderBottomWeight],
           ['left', d.borderLeftWeight],
         ] as const) {
-          if (v) css.push([`border-${side}`, `${px(v)} solid ${color}`]);
+          if (v) css.push([`border-${side}`, `${px(v)} ${lineStyle} ${color}`]);
         }
-      } else if (d.strokeAlign === 'OUTSIDE') css.push(['outline', `${px(w)} solid ${color}`]);
+      } else if (d.strokeAlign === 'OUTSIDE') css.push(['outline', `${px(w)} ${lineStyle} ${color}`]);
       else if (d.strokeAlign === 'CENTER')
-        css.push(['outline', `${px(w)} solid ${color}`], ['outline-offset', px(-w / 2)]);
-      else css.push(['border', `${px(w)} solid ${color}`]);
+        css.push(['outline', `${px(w)} ${lineStyle} ${color}`], ['outline-offset', px(-w / 2)]);
+      else css.push(['border', `${px(w)} ${lineStyle} ${color}`]);
       if (d.strokeAlign === 'INSIDE' || d.strokeAlign === undefined) css.push(['box-sizing', 'border-box']);
     }
     const shadows = (d.effects ?? [])

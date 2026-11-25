@@ -22,6 +22,8 @@ import {
   measureText,
   multiply,
   styleWeight,
+  applyTextCase,
+  textRunPath,
 } from '@figtional/fig-model';
 
 export interface RenderOptions {
@@ -440,11 +442,12 @@ function textXml(b: SvgBuilder, n: NodeChange): string {
     }
     return parts.join('');
   }
-  // Fallback: edited/new text without Figma's layout: lay it out with installed fonts
-  // (same measurement as fig-model uses for text sizes), drawn by the font, not glyph outlines.
-  const chars: string = n.textData?.characters ?? '';
-  if (!chars) return '';
-  const f = fillFor(0);
+  // Fallback: edited/new text without Figma's layout. Laid out with the same measurement as
+  // fig-model uses for text sizes, and drawn as outlines of the same installed font (so variable
+  // fonts get the right weight), one run per style: font, size, fill and decoration per range.
+  const raw: string = n.textData?.characters ?? '';
+  if (!raw) return '';
+  const chars = applyTextCase(raw, n.textCase);
   const size = n.fontSize ?? 12;
   const family = n.fontName?.family ?? 'Inter';
   const style = n.fontName?.style ?? 'Regular';
@@ -454,31 +457,85 @@ function textXml(b: SvgBuilder, n: NodeChange): string {
     { family, style, size, lineHeight: n.lineHeight, letterSpacing: n.letterSpacing },
     wrapWidth,
   );
+  b.warnings.add('text without stored layout drawn with installed fonts');
+  if (m.substituted) b.warnings.add(fontWarning(`${family} ${style}`, m.fontFamily));
   const lineH = Math.round(m.lineHeight);
   const total = lineH * m.lines.length;
   const vAlign = n.textAlignVertical ?? 'TOP';
   const top = vAlign === 'CENTER' ? (h - total) / 2 : vAlign === 'BOTTOM' ? h - total : 0;
+  const align = n.textAlignHorizontal ?? 'LEFT';
+  const runStyle = (i: number) => {
+    const sid = charStyles[i] ?? 0;
+    const o = styleTable.get(sid);
+    return {
+      sid,
+      family: o?.fontName?.family ?? family,
+      style: o?.fontName?.style ?? style,
+      size: o?.fontSize ?? size,
+      letterSpacing: o?.letterSpacing ?? n.letterSpacing,
+      decoration: o?.textDecoration ?? n.textDecoration,
+    };
+  };
+  const out: string[] = [];
+  let cursor = 0;
+  for (let li = 0; li < m.lines.length; li++) {
+    const line = m.lines[li]!;
+    const found = chars.indexOf(line.text, cursor);
+    const start = found >= 0 ? found : cursor;
+    cursor = start + line.text.length;
+    // Runs of characters with the same style.
+    const segs: { text: string; st: ReturnType<typeof runStyle> }[] = [];
+    for (let i = start; i < start + line.text.length; i++) {
+      const st = runStyle(i);
+      const last = segs[segs.length - 1];
+      if (last && JSON.stringify(last.st) === JSON.stringify(st)) last.text += chars[i];
+      else segs.push({ text: chars[i]!, st });
+    }
+    const widths = segs.map((sg) => measureText(sg.text, sg.st).width);
+    const lineWidth = widths.reduce((a, c) => a + c, 0);
+    let x = align === 'CENTER' ? (w - lineWidth) / 2 : align === 'RIGHT' ? w - lineWidth : 0;
+    const baseline = top + lineH * li + m.ascent;
+    for (let k = 0; k < segs.length; k++) {
+      const sg = segs[k]!;
+      const d = textRunPath(sg.text, sg.st, x, baseline);
+      if (d === undefined) return legacyTextXml(n, m, fillFor(0), top, lineH, w);
+      const f = fillFor(sg.st.sid);
+      const fill = `fill="${f?.fill ?? '#000'}"${f && f.opacity < 1 ? ` fill-opacity="${fmt(f.opacity)}"` : ''}`;
+      if (d) out.push(`<path d="${d}" ${fill}/>`);
+      if (sg.st.decoration === 'UNDERLINE' || sg.st.decoration === 'STRIKETHROUGH') {
+        const t = Math.max(1, sg.st.size / 16);
+        const y =
+          sg.st.decoration === 'UNDERLINE' ? baseline + sg.st.size * 0.12 : baseline - sg.st.size * 0.3;
+        out.push(`<rect x="${fmt(x)}" y="${fmt(y)}" width="${fmt(widths[k]!)}" height="${fmt(t)}" ${fill}/>`);
+      }
+      x += widths[k]!;
+    }
+  }
+  return out.join('');
+}
+
+/** Last resort when no font is installed at all: SVG text in one style. */
+function legacyTextXml(
+  n: NodeChange,
+  m: ReturnType<typeof measureText>,
+  f: { fill: string; opacity: number } | undefined,
+  top: number,
+  lineH: number,
+  w: number,
+): string {
+  const size = n.fontSize ?? 12;
+  const family = n.fontName?.family ?? 'Inter';
+  const style = n.fontName?.style ?? 'Regular';
   const align = n.textAlignHorizontal ?? 'LEFT';
   const anchor = align === 'CENTER' ? 'middle' : align === 'RIGHT' ? 'end' : 'start';
   const x = anchor === 'middle' ? w / 2 : anchor === 'end' ? w : 0;
   const tspans = m.lines
     .map((line, i) => `<tspan x="${fmt(x)}" y="${fmt(top + lineH * i + m.ascent)}">${esc(line.text)}</tspan>`)
     .join('');
-  b.warnings.add('text without stored layout drawn with installed fonts');
-  if (m.substituted) b.warnings.add(fontWarning(`${family} ${style}`, m.fontFamily));
-  const ls = n.letterSpacing?.value
-    ? ` letter-spacing="${fmt(n.letterSpacing.units === 'PIXELS' ? n.letterSpacing.value : (size * n.letterSpacing.value) / 100)}"`
-    : '';
-  const deco =
-    n.textDecoration === 'UNDERLINE'
-      ? ' text-decoration="underline"'
-      : n.textDecoration === 'STRIKETHROUGH'
-        ? ' text-decoration="line-through"'
-        : '';
   return (
     `<text font-family="${esc(family)}, sans-serif" font-size="${fmt(size)}" font-weight="${styleWeight(style)}"` +
     `${/italic/i.test(style) ? ' font-style="italic"' : ''} text-anchor="${anchor}" xml:space="preserve" fill="${f?.fill ?? '#000'}"` +
-    `${f && f.opacity < 1 ? ` fill-opacity="${fmt(f.opacity)}"` : ''}${ls}${deco}>${tspans}</text>`
+    `${f && f.opacity < 1 ? ` fill-opacity="${fmt(f.opacity)}"` : ''}>${tspans}</text>`
   );
 }
 
@@ -544,9 +601,12 @@ function ownPaint(b: SvgBuilder, n: NodeChange): string {
       } else {
         const cap = { ROUND: 'round', SQUARE: 'square' }[n.strokeCap as string];
         const join = { ROUND: 'round', BEVEL: 'bevel' }[n.strokeJoin as string];
+        const dash = (n.dashPattern ?? []).length
+          ? ` stroke-dasharray="${n.dashPattern.map(fmt).join(' ')}"`
+          : '';
         for (const d of strokeOutlines(b, n)) {
           out.push(
-            `<path d="${d}" fill="none" stroke="${f.fill}" stroke-width="${fmt(n.strokeWeight ?? 1)}"${f.opacity < 1 ? ` stroke-opacity="${fmt(f.opacity)}"` : ''}${cap ? ` stroke-linecap="${cap}"` : ''}${join ? ` stroke-linejoin="${join}"` : ''}/>`,
+            `<path d="${d}" fill="none" stroke="${f.fill}" stroke-width="${fmt(n.strokeWeight ?? 1)}"${f.opacity < 1 ? ` stroke-opacity="${fmt(f.opacity)}"` : ''}${cap ? ` stroke-linecap="${cap}"` : ''}${join ? ` stroke-linejoin="${join}"` : ''}${dash}/>`,
           );
         }
       }
