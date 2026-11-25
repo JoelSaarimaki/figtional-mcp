@@ -6,6 +6,19 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 
 ## [Unreleased]
 
+## [0.2.0]
+
+### Added
+
+- `use_figma`: `figma.createNodeFromSvg()` for icons and simple drawings (paths and basic shapes with solid fills and strokes; SVG features Figtional can't reproduce faithfully, such as text, images and gradients, are refused with a Figtional limitation), and `figma.createVector()` with `vectorPaths`, `vectorNetwork` and `setVectorNetworkAsync`. The viewer and screenshots draw these vectors.
+- `use_figma`: new images with `figma.createImage(bytes)` and `figma.createImageAsync()` for `data:` URLs (Figtional makes no network requests), `getImageByHash`, `image.getSizeAsync()` / `getBytesAsync()`, and `figma.base64Encode` / `base64Decode`. New images are saved into the `.fig` file and shown in screenshots and the viewer.
+- `use_figma`: paint, text, effect and grid styles: `figma.createPaintStyle()` and friends, `getLocal*StylesAsync`, `getStyleByIdAsync`, `importStyleByKeyAsync` for styles embedded in the file, and applying them with `setFillStyleIdAsync`, `setStrokeStyleIdAsync`, `setEffectStyleIdAsync`, `setGridStyleIdAsync` and `setTextStyleIdAsync`. Layers using a style follow changes to it; setting a value directly detaches the style, as in Figma.
+- `use_figma`: explicit variable modes (`setExplicitVariableModeForCollection`, `clearExplicitVariableModeForCollection`, `explicitVariableModes`, `resolvedVariableModes`) on frames, components, component sets, instances and sections, e.g. for light and dark themes. The colours stored with bound layers are updated to the new mode.
+
+### Changed
+
+- Rendering (viewer and screenshots) draws colours bound to variables in the mode in effect at each layer, as Figma does, instead of the colour stored with the layer. Frames with an explicit mode (e.g. Dark) now look right, and Futurice's landing page matches Figma's export more closely.
+
 ## [0.1.4]
 
 ### Added
@@ -70,7 +83,8 @@ First release.
 - **Web viewer** (`figtional serve`): page selector, layer tree, pan/zoom canvas, inspect panel, file info, prototype arrows and a basic Present mode. It reloads on file changes and only listens on `127.0.0.1`.
 - **CLI:** `mcp`, `serve`, `dump`, `inspect`, `validate` and per-command help.
 
-[Unreleased]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.4...development
+[Unreleased]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.2.0...development
+[0.2.0]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.4...v0.2.0
 [0.1.4]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.1...v0.1.2

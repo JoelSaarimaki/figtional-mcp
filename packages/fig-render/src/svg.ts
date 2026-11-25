@@ -3,13 +3,22 @@
  * shapes, and glyph outlines (derivedTextData) for text, so unedited content looks the way Figma
  * laid it out. See docs/fig-format.md.
  */
-import { type Matrix, type NodeChange, decodePathCommands, pathCommandsToSvg } from '@figtional/fig-format';
+import {
+  type Matrix,
+  type NodeChange,
+  type VectorNetwork,
+  decodePathCommands,
+  decodeVectorNetwork,
+  pathCommandsToSvg,
+} from '@figtional/fig-format';
 import {
   type FigDocument,
   type Rect,
   type SceneNode,
   invert,
   isGroupData,
+  networkToPathData,
+  resolveVariableAt,
   measureText,
   multiply,
   styleWeight,
@@ -94,6 +103,8 @@ class SvgBuilder {
   private nextId = 0;
   readonly warnings = new Set<string>();
   private imageCache = new Map<string, string | null>();
+  /** The node being drawn (for variable modes in effect there). */
+  current: SceneNode | undefined;
 
   constructor(
     readonly doc: FigDocument,
@@ -136,12 +147,27 @@ class SvgBuilder {
     return uri;
   }
 
+  /**
+   * A paint's bound colour variable, resolved in the mode in effect at the node being drawn. Figma
+   * draws bound colours this way; the paint's inline colour is often the default mode's value
+   * (verified against Figma's exports, docs/fig-format.md §5b). Falls back to the inline colour.
+   */
+  boundColor(p: any): any {
+    const alias = p.colorVar?.value?.alias;
+    if (!alias || !this.current) return undefined;
+    const v = this.doc.resolveVariableRef(alias);
+    const val = v ? resolveVariableAt(this.doc, this.current, v) : undefined;
+    return val && typeof val === 'object' && 'r' in val ? val : undefined;
+  }
+
   /** SVG fill value for a paint, defining gradients/patterns as needed. */
   paintFill(p: any, w: number, h: number): { fill: string; opacity: number } | undefined {
     const opacity = p.opacity ?? 1;
     switch (p.type) {
-      case 'SOLID':
-        return { fill: rgb(p.color), opacity: (p.color?.a ?? 1) * opacity };
+      case 'SOLID': {
+        const c = this.boundColor(p) ?? p.color;
+        return { fill: rgb(c), opacity: (c?.a ?? 1) * opacity };
+      }
       case 'GRADIENT_LINEAR':
       case 'GRADIENT_RADIAL':
       case 'GRADIENT_ANGULAR':
@@ -258,11 +284,52 @@ function shapePaths(b: SvgBuilder, n: NodeChange): { d: string; rule: string }[]
     }))
     .filter((g: { d?: string }) => g.d) as { d: string; rule: string }[];
   if (geo.length) return geo;
+  const net = vectorNetworkOf(b, n);
+  if (net) {
+    const { sx, sy } = networkScale(n);
+    return net.regions.map((r) => ({
+      d: networkToPathData({ ...net, regions: [r] }, sx, sy, true),
+      rule: r.windingRule === 'ODD' ? 'evenodd' : 'nonzero',
+    }));
+  }
   if (n.type === 'ELLIPSE') return [{ d: ellipsePath(w, h), rule: 'nonzero' }];
   if (['FRAME', 'SYMBOL', 'INSTANCE', 'ROUNDED_RECTANGLE', 'RECTANGLE', 'SECTION'].includes(n.type ?? '')) {
     return w > 0 && h > 0 ? [{ d: rectPath(n, w, h), rule: 'nonzero' }] : [];
   }
   return [];
+}
+
+/** A vector's network, when it has no precomputed geometry (e.g. created by use_figma). */
+function vectorNetworkOf(b: SvgBuilder, n: NodeChange): VectorNetwork | undefined {
+  if (n.type !== 'VECTOR' || n.vectorData?.vectorNetworkBlob === undefined) return undefined;
+  const blob = b.doc.blobs[n.vectorData.vectorNetworkBlob];
+  if (!blob) return undefined;
+  try {
+    return decodeVectorNetwork(blob.bytes);
+  } catch {
+    b.warnings.add('undecodable vector network');
+    return undefined;
+  }
+}
+
+/** Network coordinates are in vectorData.normalizedSize; the node is drawn at its size. */
+function networkScale(n: NodeChange): { sx: number; sy: number } {
+  const ns = n.vectorData?.normalizedSize;
+  return {
+    sx: ns?.x ? (n.size?.x ?? ns.x) / ns.x : 1,
+    sy: ns?.y ? (n.size?.y ?? ns.y) / ns.y : 1,
+  };
+}
+
+/** Outlines to stroke when a node has no strokeGeometry: a vector's segments, else its shape. */
+function strokeOutlines(b: SvgBuilder, n: NodeChange): string[] {
+  const net = vectorNetworkOf(b, n);
+  if (net) {
+    const { sx, sy } = networkScale(n);
+    const d = networkToPathData(net, sx, sy);
+    return d ? [d] : [];
+  }
+  return shapePaths(b, n).map((s) => s.d);
 }
 
 function filterFor(b: SvgBuilder, n: NodeChange): string | undefined {
@@ -475,10 +542,11 @@ function ownPaint(b: SvgBuilder, n: NodeChange): string {
         const paths = geo.map((d) => `<path d="${d}" fill="${f.fill}"${op}/>`).join('');
         out.push(clip ? `<g${clip}>${paths}</g>` : paths);
       } else {
-        const shapes = shapePaths(b, n);
-        for (const s of shapes) {
+        const cap = { ROUND: 'round', SQUARE: 'square' }[n.strokeCap as string];
+        const join = { ROUND: 'round', BEVEL: 'bevel' }[n.strokeJoin as string];
+        for (const d of strokeOutlines(b, n)) {
           out.push(
-            `<path d="${s.d}" fill="none" stroke="${f.fill}" stroke-width="${fmt(n.strokeWeight ?? 1)}"${f.opacity < 1 ? ` stroke-opacity="${fmt(f.opacity)}"` : ''}/>`,
+            `<path d="${d}" fill="none" stroke="${f.fill}" stroke-width="${fmt(n.strokeWeight ?? 1)}"${f.opacity < 1 ? ` stroke-opacity="${fmt(f.opacity)}"` : ''}${cap ? ` stroke-linecap="${cap}"` : ''}${join ? ` stroke-linejoin="${join}"` : ''}/>`,
           );
         }
       }
@@ -488,6 +556,16 @@ function ownPaint(b: SvgBuilder, n: NodeChange): string {
 }
 
 function renderNode(b: SvgBuilder, node: SceneNode, transform: Matrix): string {
+  const prev = b.current;
+  b.current = node;
+  try {
+    return renderNodeInner(b, node, transform);
+  } finally {
+    b.current = prev;
+  }
+}
+
+function renderNodeInner(b: SvgBuilder, node: SceneNode, transform: Matrix): string {
   const n = node.data;
   if (!node.visible) return '';
   if ((n.opacity ?? 1) <= 0) return '';

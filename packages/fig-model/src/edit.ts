@@ -109,6 +109,14 @@ export class EditSession {
     this.touchStructure(parentId);
   }
 
+  /** Appends a blob (e.g. a vector network) to the message and returns its index. */
+  addBlob(bytes: Uint8Array): number {
+    const blobs = (this.doc.message.blobs ??= []);
+    blobs.push({ bytes });
+    this.changed = true;
+    return blobs.length - 1;
+  }
+
   /** Deep copy of a node and its subtree, inserted right after it (or into `parentId`). */
   clone(id: string, parentId?: string, index?: number): NodeChange {
     const src = this.raw(id);

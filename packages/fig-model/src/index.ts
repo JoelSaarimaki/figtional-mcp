@@ -8,3 +8,5 @@ export * from './inspect.js';
 export * from './fonts.js';
 export * from './edit.js';
 export * from './components.js';
+export * from './vector-path.js';
+export * from './svg-import.js';

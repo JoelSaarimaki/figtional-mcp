@@ -3,7 +3,13 @@
  * use_figma tool. Behaviour, names and error messages follow Figma where known
  * (docs/figma-mcp-tools.md §5); unsupported APIs throw NotSupportedInFigtional.
  */
-import { type GUID, type NodeChange, guidToString } from '@figtional/fig-format';
+import {
+  type GUID,
+  type NodeChange,
+  decodeVectorNetwork,
+  encodeVectorNetwork,
+  guidToString,
+} from '@figtional/fig-format';
 import {
   ComponentOps,
   copyInstanceFields,
@@ -15,21 +21,30 @@ import {
   type SceneNode,
   availableFonts,
   collectionInfo,
+  effectiveMode,
+  resolveVariableAt,
   isInternalPage,
   normalizeNodeId,
   resolveVariable,
   rotationDegrees,
   stackProps,
+  type Subpath,
+  SvgUnsupported,
+  mergeNetwork,
+  networkToPathData,
+  parsePathData,
+  parseSvgDocument,
+  subpathBounds,
+  subpathsToNetwork,
+  transformSubpaths,
 } from '@figtional/fig-model';
 import { fontFallbacksIn, renderPng } from '@figtional/fig-render';
 
-export class FigtionalUnsupported extends Error {
-  constructor(api: string, detail = '') {
-    super(
-      `NotSupportedInFigtional: ${api}. This is a limitation of Figtional (the local Figma MCP stand-in), not of Figma.${detail ? ' ' + detail : ''}`,
-    );
-  }
-}
+import { FigtionalUnsupported } from './unsupported.js';
+import { createStyleApi } from './plugin-styles.js';
+import { imageInfo } from './image-size.js';
+
+export { FigtionalUnsupported };
 
 export interface ApiContext {
   doc: FigDocument;
@@ -175,6 +190,11 @@ function paintFromPlugin(doc: FigDocument, p: any, path: string): any {
     }
     out.scale = p.scalingFactor ?? 0.5;
     out.rotation = p.rotation ?? 0;
+    const info = imageInfo(doc.archive!.image(p.imageHash)!);
+    if (info) {
+      out.originalImageWidth = info.width;
+      out.originalImageHeight = info.height;
+    }
   } else {
     throw new Error(`Invalid paint type "${p.type}" at ${path}`);
   }
@@ -282,6 +302,87 @@ export function createFigmaApi(ctx: ApiContext) {
         throw new Error(`Cannot write to node with unloaded font "${f.family} ${f.style}"`);
     }
   };
+
+  const styles = createStyleApi({
+    doc,
+    session,
+    paintToPlugin: (p) => paintToPlugin(doc, p),
+    paintFromPlugin: (p, path) => paintFromPlugin(doc, p, path),
+    effectToPlugin,
+    effectFromPlugin,
+    isFontLoaded,
+  });
+  /** Setting a style-controlled value directly detaches the node from that style (as in Figma). */
+  const detachStyle = (id: string, refField: string) => {
+    if (scene(id).isInstanceSublayer) return;
+    const raw = session.raw(id);
+    if (raw[refField]) delete raw[refField];
+  };
+  const dynamicPage = (prop: string, asyncName: string) =>
+    new Error(`Cannot call ${prop} setter with documentAccess: dynamic-page. Use node.${asyncName} instead.`);
+
+  /**
+   * Stores subpaths (in the parent's coordinates) as a vector node's network: the node is placed
+   * at the paths' bounds and the network is relative to that corner (Figma's normalizedSize).
+   */
+  const vectorFields = (paths: Subpath[], fill: 'NONZERO' | 'ODD' | null, extra: Subpath[] = []) => {
+    const all = [...paths, ...extra];
+    const b = subpathBounds(all);
+    const shift = { m00: 1, m01: 0, m02: -b.x, m10: 0, m11: 1, m12: -b.y };
+    const net = subpathsToNetwork(transformSubpaths(paths, shift), fill);
+    if (extra.length) mergeNetwork(net, subpathsToNetwork(transformSubpaths(extra, shift), null));
+    const size = { x: Math.max(b.width, 0.01), y: Math.max(b.height, 0.01) };
+    return {
+      size,
+      transform: { m00: 1, m01: 0, m02: b.x, m10: 0, m11: 1, m12: b.y },
+      vectorData: {
+        vectorNetworkBlob: session.addBlob(encodeVectorNetwork(net)),
+        normalizedSize: { ...size },
+      },
+    };
+  };
+  const networkOf = (d: NodeChange) => {
+    const i = d.vectorData?.vectorNetworkBlob;
+    return i === undefined || !doc.blobs[i]
+      ? { vertices: [], segments: [], regions: [] }
+      : decodeVectorNetwork(doc.blobs[i]!.bytes);
+  };
+
+  /**
+   * After a mode change, stores each bound paint's colour as resolved in the mode now in effect,
+   * so the inline colour (what a viewer without variable support shows) matches the variable.
+   */
+  const syncBoundColors = (rootId: string) => {
+    scene(rootId).walk((n) => {
+      if (n.isInstanceSublayer) return false;
+      let changed = false;
+      for (const field of ['fillPaints', 'strokePaints'] as const) {
+        for (const p of session.raw(n.id)[field] ?? []) {
+          const alias = p.colorVar?.value?.alias;
+          const v = alias ? doc.resolveVariableRef(alias) : undefined;
+          const val = v ? resolveVariableAt(doc, n, v) : undefined;
+          if (val && typeof val === 'object' && 'r' in val) {
+            p.color = { r: val.r, g: val.g, b: val.b, a: val.a ?? 1 };
+            changed = true;
+          }
+        }
+      }
+      if (changed) session.markDirty(n.id);
+      return true;
+    });
+  };
+
+  const imageApi = (hash: string) => ({
+    hash,
+    async getBytesAsync() {
+      return Uint8Array.from(doc.archive!.image(hash)!);
+    },
+    async getSizeAsync() {
+      const info = imageInfo(doc.archive!.image(hash)!);
+      if (!info) throw new Error('Image type is unsupported');
+      return { width: info.width, height: info.height };
+    },
+  });
 
   const wrap = (s: SceneNode | undefined): any => {
     if (!s) return null;
@@ -639,6 +740,7 @@ export function createFigmaApi(ctx: ApiContext) {
       if (!Array.isArray(v)) throw new Error('fills must be an array of paints');
       if (this.type === 'TEXT') requireFonts(this._d);
       editRaw(this.id, { fillPaints: v.map((p, i) => paintFromPlugin(doc, p, `[${i}]`)) });
+      detachStyle(this.id, 'styleIdForFill');
     }
     get strokes() {
       return deepFreeze((this._d.strokePaints ?? []).map((p: any) => paintToPlugin(doc, p)));
@@ -646,6 +748,7 @@ export function createFigmaApi(ctx: ApiContext) {
     set strokes(v: any[]) {
       if (!Array.isArray(v)) throw new Error('strokes must be an array of paints');
       editRaw(this.id, { strokePaints: v.map((p, i) => paintFromPlugin(doc, p, `[${i}]`)) });
+      detachStyle(this.id, 'styleIdForStrokeFill');
       if (this._d.strokeWeight === undefined) editRaw(this.id, { strokeWeight: 1 });
       session.invalidateGeometry(session.raw(this.id));
     }
@@ -711,6 +814,7 @@ export function createFigmaApi(ctx: ApiContext) {
     }
     set effects(v: any[]) {
       editRaw(this.id, { effects: v.map((e, i) => effectFromPlugin(e, `[${i}]`)) });
+      detachStyle(this.id, 'styleIdForEffect');
     }
     get cornerRadius(): any {
       return this._d.rectangleCornerRadiiIndependent ? MIXED : (this._d.cornerRadius ?? 0);
@@ -1128,6 +1232,7 @@ export function createFigmaApi(ctx: ApiContext) {
         );
       requireFonts(this._d);
       editRaw(this.id, { fontName: { family: v.family, style: v.style, postscript: '' } }, { text: true });
+      detachStyle(this.id, 'styleIdForText');
     }
     get fontSize() {
       this.requireText('fontSize');
@@ -1137,6 +1242,7 @@ export function createFigmaApi(ctx: ApiContext) {
       this.requireText('fontSize');
       requireFonts(this._d);
       editRaw(this.id, { fontSize: Number(v) }, { text: true });
+      detachStyle(this.id, 'styleIdForText');
     }
     get lineHeight() {
       this.requireText('lineHeight');
@@ -1158,6 +1264,7 @@ export function createFigmaApi(ctx: ApiContext) {
             ? { value: (v.value ?? 100) / 100, units: 'RAW' }
             : { value: v.value ?? 0, units: 'PIXELS' };
       editRaw(this.id, { lineHeight: lh }, { text: true });
+      detachStyle(this.id, 'styleIdForText');
     }
     get letterSpacing() {
       this.requireText('letterSpacing');
@@ -1174,6 +1281,7 @@ export function createFigmaApi(ctx: ApiContext) {
         { letterSpacing: { value: Number(v.value), units: v.unit === 'PIXELS' ? 'PIXELS' : 'PERCENT' } },
         { text: true },
       );
+      detachStyle(this.id, 'styleIdForText');
     }
     get textAlignHorizontal() {
       this.requireText('textAlignHorizontal');
@@ -1212,6 +1320,7 @@ export function createFigmaApi(ctx: ApiContext) {
       this.requireText('textCase');
       requireFonts(this._d);
       editRaw(this.id, { textCase: v }, { text: true });
+      detachStyle(this.id, 'styleIdForText');
     }
     get textDecoration() {
       this.requireText('textDecoration');
@@ -1221,6 +1330,7 @@ export function createFigmaApi(ctx: ApiContext) {
       this.requireText('textDecoration');
       requireFonts(this._d);
       editRaw(this.id, { textDecoration: v });
+      detachStyle(this.id, 'styleIdForText');
     }
     get hasMissingFont() {
       return false;
@@ -1325,12 +1435,163 @@ export function createFigmaApi(ctx: ApiContext) {
       const sizes = new Set(segs.map((s) => s.fontSize));
       return sizes.size === 1 ? segs[0].fontSize : MIXED;
     }
-    async setTextStyleIdAsync(_id: string) {
-      throw new FigtionalUnsupported('setTextStyleIdAsync', 'Set the typography properties directly.');
+
+    // ------------------------------------------------ vectors
+    private requireVector(prop: string) {
+      if (this.type !== 'VECTOR') throw typeError(prop, this.type);
+    }
+    get vectorPaths() {
+      this.requireVector('vectorPaths');
+      const net = networkOf(this._d);
+      const ns = this._d.vectorData?.normalizedSize;
+      const sx = ns?.x ? this.width / ns.x : 1;
+      const sy = ns?.y ? this.height / ns.y : 1;
+      const spaced = (d: string) =>
+        d
+          .replace(/([MLCZ])/g, ' $1 ')
+          .replace(/\s+/g, ' ')
+          .trim();
+      if (!net.regions.length)
+        return net.segments.length
+          ? [{ windingRule: 'NONE', data: spaced(networkToPathData(net, sx, sy)) }]
+          : [];
+      return net.regions.map((r) => ({
+        windingRule: r.windingRule === 'ODD' ? 'EVENODD' : 'NONZERO',
+        data: spaced(networkToPathData({ ...net, regions: [r] }, sx, sy, true)),
+      }));
+    }
+    set vectorPaths(v: { windingRule: string; data: string }[]) {
+      this.requireVector('vectorPaths');
+      if (!Array.isArray(v)) throw new Error('vectorPaths must be an array of { windingRule, data }');
+      const filled: Subpath[] = [];
+      const open: Subpath[] = [];
+      let rule: 'NONZERO' | 'ODD' = 'NONZERO';
+      v.forEach((p, i) => {
+        if (!['NONZERO', 'EVENODD', 'NONE'].includes(p?.windingRule))
+          throw new Error(`Invalid windingRule at [${i}]: expected "NONZERO", "EVENODD" or "NONE"`);
+        const paths = parsePathData(String(p.data ?? ''));
+        if (p.windingRule === 'NONE') open.push(...paths);
+        else {
+          filled.push(...paths);
+          if (p.windingRule === 'EVENODD') rule = 'ODD';
+        }
+      });
+      const t = this._d.transform ?? IDENTITY_T;
+      const toParent = { m00: 1, m01: 0, m02: t.m02, m10: 0, m11: 1, m12: t.m12 };
+      editRaw(
+        this.id,
+        vectorFields(
+          transformSubpaths(filled, toParent),
+          filled.length ? rule : null,
+          transformSubpaths(open, toParent),
+        ),
+      );
+      session.invalidateGeometry(session.raw(this.id));
+    }
+    get vectorNetwork() {
+      this.requireVector('vectorNetwork');
+      const net = networkOf(this._d);
+      return deepFreeze({
+        vertices: net.vertices.map((p) => ({ x: p.x, y: p.y })),
+        segments: net.segments.map((s) => ({
+          start: s.start,
+          end: s.end,
+          tangentStart: { ...s.tangentStart },
+          tangentEnd: { ...s.tangentEnd },
+        })),
+        regions: net.regions.map((r) => ({
+          windingRule: r.windingRule === 'ODD' ? 'EVENODD' : 'NONZERO',
+          loops: r.loops.map((l) => [...l]),
+        })),
+      });
+    }
+    set vectorNetwork(_v: unknown) {
+      throw dynamicPage('vectorNetwork', 'setVectorNetworkAsync');
+    }
+    async setVectorNetworkAsync(v: any) {
+      this.requireVector('setVectorNetworkAsync');
+      const vertices = (v?.vertices ?? []).map((p: any) => ({ x: Number(p.x), y: Number(p.y), styleID: 0 }));
+      const segments = (v?.segments ?? []).map((s: any, i: number) => {
+        if (vertices[s.start] === undefined || vertices[s.end] === undefined)
+          throw new Error(`Invalid vertex index in segments[${i}]`);
+        return {
+          styleID: 0,
+          start: s.start,
+          end: s.end,
+          tangentStart: { x: s.tangentStart?.x ?? 0, y: s.tangentStart?.y ?? 0 },
+          tangentEnd: { x: s.tangentEnd?.x ?? 0, y: s.tangentEnd?.y ?? 0 },
+        };
+      });
+      const regions = (v?.regions ?? []).map((r: any) => ({
+        styleID: 0,
+        windingRule: r.windingRule === 'EVENODD' ? 'ODD' : 'NONZERO',
+        loops: (r.loops ?? []).map((l: number[]) => [...l]),
+      }));
+      const xs = vertices.map((p: any) => p.x);
+      const ys = vertices.map((p: any) => p.y);
+      const w = xs.length ? Math.max(...xs) - Math.min(0, ...xs) : 0;
+      const h = ys.length ? Math.max(...ys) - Math.min(0, ...ys) : 0;
+      const size = { x: Math.max(w, 0.01), y: Math.max(h, 0.01) };
+      editRaw(this.id, {
+        size,
+        vectorData: {
+          vectorNetworkBlob: session.addBlob(encodeVectorNetwork({ vertices, segments, regions })),
+          normalizedSize: { ...size },
+        },
+      });
+      session.invalidateGeometry(session.raw(this.id));
+    }
+
+    // ------------------------------------------------ styles
+    get fillStyleId() {
+      return styles.idFor(this._d, 'styleIdForFill');
+    }
+    set fillStyleId(_v: string) {
+      throw dynamicPage('fillStyleId', 'setFillStyleIdAsync');
+    }
+    async setFillStyleIdAsync(id: string) {
+      styles.applyToNode(this.id, 'styleIdForFill', String(id ?? ''), editRaw);
+    }
+    get strokeStyleId() {
+      return styles.idFor(this._d, 'styleIdForStrokeFill');
+    }
+    set strokeStyleId(_v: string) {
+      throw dynamicPage('strokeStyleId', 'setStrokeStyleIdAsync');
+    }
+    async setStrokeStyleIdAsync(id: string) {
+      styles.applyToNode(this.id, 'styleIdForStrokeFill', String(id ?? ''), editRaw);
+      if (id && this._d.strokeWeight === undefined) editRaw(this.id, { strokeWeight: 1 });
+    }
+    get effectStyleId() {
+      return styles.idFor(this._d, 'styleIdForEffect');
+    }
+    set effectStyleId(_v: string) {
+      throw dynamicPage('effectStyleId', 'setEffectStyleIdAsync');
+    }
+    async setEffectStyleIdAsync(id: string) {
+      styles.applyToNode(this.id, 'styleIdForEffect', String(id ?? ''), editRaw);
+    }
+    get gridStyleId() {
+      return styles.idFor(this._d, 'styleIdForGrid');
+    }
+    set gridStyleId(_v: string) {
+      throw dynamicPage('gridStyleId', 'setGridStyleIdAsync');
+    }
+    async setGridStyleIdAsync(id: string) {
+      if (!FRAMELIKE.includes(this.type)) throw typeError('setGridStyleIdAsync', this.type);
+      styles.applyToNode(this.id, 'styleIdForGrid', String(id ?? ''), editRaw);
     }
     get textStyleId() {
-      const s = doc.resolveStyleRef(this._d.styleIdForText);
-      return s ? `S:${s.key ?? guidToString(s.guid)}` : '';
+      this.requireText('textStyleId');
+      return styles.idFor(this._d, 'styleIdForText');
+    }
+    set textStyleId(_v: string) {
+      throw dynamicPage('textStyleId', 'setTextStyleIdAsync');
+    }
+    async setTextStyleIdAsync(id: string) {
+      this.requireText('setTextStyleIdAsync');
+      requireFonts(this._d);
+      styles.applyToNode(this.id, 'styleIdForText', String(id ?? ''), editRaw);
     }
 
     // ------------------------------------------------ components & instances
@@ -1485,6 +1746,74 @@ export function createFigmaApi(ctx: ApiContext) {
     }
     deleteComponentProperty(key: string) {
       components.deleteProperty(this.definitionOwnerId('deleteComponentProperty'), key);
+    }
+
+    // ------------------------------------------------ explicit variable modes
+    private requireModes(prop: string) {
+      if (![...FRAMELIKE, 'SECTION'].includes(this.type)) throw typeError(prop, this.type);
+    }
+    private modeCollection(collection: unknown): NodeChange {
+      const id = typeof collection === 'string' ? collection : (collection as { id?: string } | null)?.id;
+      const c = id ? collectionById(doc, id) : undefined;
+      if (!c) throw new Error(`Variable collection not found: ${String(id)}`);
+      return c;
+    }
+    get explicitVariableModes(): Record<string, string> {
+      this.requireModes('explicitVariableModes');
+      const out: Record<string, string> = {};
+      for (const e of this._d.variableModeBySetMap?.entries ?? []) {
+        const ref = e.variableSetID;
+        const c = ref ? doc.resolveVariableRef(ref.guid ? { guid: ref.guid } : ref) : undefined;
+        if (c && e.variableModeID)
+          out[`VariableCollectionId:${guidToString(c.guid)}`] = guidToString(e.variableModeID);
+      }
+      return out;
+    }
+    get resolvedVariableModes(): Record<string, string> {
+      const out: Record<string, string> = {};
+      const s = scene(this.id);
+      for (const c of doc.variableCollections) {
+        const mode = effectiveMode(doc, s, c) ?? collectionInfo(doc, c).defaultModeId;
+        if (mode) out[`VariableCollectionId:${guidToString(c.guid)}`] = mode;
+      }
+      return out;
+    }
+    setExplicitVariableModeForCollection(collection: unknown, modeId: string) {
+      this.requireModes('setExplicitVariableModeForCollection');
+      const c = this.modeCollection(collection);
+      const mode = (c.variableSetModes ?? []).find((m: any) => guidToString(m.id) === String(modeId));
+      if (!mode) throw new Error(`Mode ${String(modeId)} not found in collection "${c.name ?? ''}"`);
+      // Library collections are referenced by key (as in Figma's files), local ones by guid.
+      const variableSetID =
+        c.sourceLibraryKey && c.key
+          ? { assetRef: { key: c.key, ...(c.version ? { version: c.version } : {}) } }
+          : { guid: { ...c.guid } };
+      const entries = this.modeEntriesWithout(c);
+      entries.push({ variableSetID, variableModeID: { ...mode.id } });
+      editRaw(this.id, { variableModeBySetMap: { entries } });
+      syncBoundColors(this.id);
+    }
+    clearExplicitVariableModeForCollection(collection: unknown) {
+      this.requireModes('clearExplicitVariableModeForCollection');
+      const entries = this.modeEntriesWithout(this.modeCollection(collection));
+      if (entries.length) editRaw(this.id, { variableModeBySetMap: { entries } });
+      else if (this._d.variableModeBySetMap) {
+        if (scene(this.id).isInstanceSublayer)
+          throw new FigtionalUnsupported('clearing explicit variable modes on a layer inside an instance');
+        delete session.raw(this.id).variableModeBySetMap;
+        session.markDirty(this.id);
+      }
+      syncBoundColors(this.id);
+    }
+    private modeEntriesWithout(c: NodeChange): any[] {
+      const id = guidToString(c.guid);
+      return (this._d.variableModeBySetMap?.entries ?? [])
+        .filter((e: any) => {
+          const ref = e.variableSetID;
+          const set = ref ? doc.resolveVariableRef(ref.guid ? { guid: ref.guid } : ref) : undefined;
+          return !set || guidToString(set.guid) !== id;
+        })
+        .map((e: any) => structuredClone(e));
     }
 
     // ------------------------------------------------ variables
@@ -2212,15 +2541,84 @@ export function createFigmaApi(ctx: ApiContext) {
     group() {
       throw new FigtionalUnsupported('figma.group', 'Use a frame (createFrame / createAutoLayout) instead.');
     },
-    createVector: notSupportedFigtional('createVector'),
-    createNodeFromSvg: notSupportedFigtional('createNodeFromSvg'),
-    createImage: notSupportedFigtional('createImage', 'Only images already in the file can be used.'),
-    createImageAsync: notSupportedFigtional(
-      'createImageAsync',
-      'Only images already in the file can be used.',
-    ),
+    createVector() {
+      return create('VECTOR', {
+        size: { x: 0.01, y: 0.01 },
+        fillPaints: [],
+        strokePaints: [structuredClone(BLACK)],
+        vectorData: {
+          vectorNetworkBlob: session.addBlob(
+            encodeVectorNetwork({ vertices: [], segments: [], regions: [] }),
+          ),
+          normalizedSize: { x: 0.01, y: 0.01 },
+        },
+      });
+    },
+    createNodeFromSvg(svg: string) {
+      let parsed: ReturnType<typeof parseSvgDocument>;
+      try {
+        parsed = parseSvgDocument(String(svg));
+      } catch (e) {
+        if (e instanceof SvgUnsupported)
+          throw new FigtionalUnsupported(`createNodeFromSvg with ${e.message}`);
+        throw e;
+      }
+      const frame = create('FRAME', {
+        name: 'Frame',
+        size: { x: parsed.width, y: parsed.height },
+        fillPaints: [],
+        frameMaskDisabled: false,
+      });
+      for (const shape of parsed.shapes) {
+        const solid = (c: { r: number; g: number; b: number; a: number }) => ({
+          type: 'SOLID',
+          color: { r: c.r, g: c.g, b: c.b, a: 1 },
+          opacity: c.a,
+          visible: true,
+          blendMode: 'NORMAL',
+        });
+        session.create('VECTOR', frame.id, undefined, {
+          name: shape.name,
+          visible: true,
+          opacity: shape.opacity,
+          ...vectorFields(shape.paths, shape.fill ? shape.fillRule : null),
+          strokeWeight: shape.stroke ? shape.strokeWidth : 0,
+          strokeAlign: 'CENTER',
+          strokeJoin: shape.strokeJoin,
+          ...(shape.strokeCap !== 'NONE' ? { strokeCap: shape.strokeCap } : {}),
+          fillPaints: shape.fill ? [solid(shape.fill)] : [],
+          strokePaints: shape.stroke ? [solid(shape.stroke)] : [],
+        });
+      }
+      return frame;
+    },
+    createImage(data: Uint8Array) {
+      if (!ArrayBuffer.isView(data)) throw new Error('createImage expects a Uint8Array');
+      const bytes = Uint8Array.from(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
+      const info = imageInfo(bytes);
+      if (!info) throw new Error('Image type is unsupported');
+      if (info.width > 4096 || info.height > 4096) throw new Error('Image is too large');
+      if (!doc.archive) throw new FigtionalUnsupported('createImage without a .fig archive');
+      return imageApi(doc.archive.addImage(bytes));
+    },
+    async createImageAsync(src: string) {
+      const m = /^data:image\/[a-z+.-]+;base64,(.*)$/is.exec(String(src));
+      if (!m)
+        throw new FigtionalUnsupported(
+          'createImageAsync with a URL',
+          'Figtional makes no network requests. Pass the bytes to figma.createImage(), or use a data: URL.',
+        );
+      return figma.createImage(Uint8Array.from(Buffer.from(m[1]!, 'base64')));
+    },
+    base64Encode(data: Uint8Array) {
+      if (!ArrayBuffer.isView(data)) throw new Error('base64Encode expects a Uint8Array');
+      return Buffer.from(data.buffer, data.byteOffset, data.byteLength).toString('base64');
+    },
+    base64Decode(data: string) {
+      return Uint8Array.from(Buffer.from(String(data), 'base64'));
+    },
     getImageByHash(hash: string) {
-      return doc.archive?.image(hash) ? { hash } : null;
+      return doc.archive?.image(String(hash)) ? imageApi(String(hash).toLowerCase()) : null;
     },
     async importComponentByKeyAsync(key: string) {
       const c = [...doc.nodes.values()].find(
@@ -2245,7 +2643,19 @@ export function createFigmaApi(ctx: ApiContext) {
       return wrap(scene(guidToString(c.guid)));
     },
     async importStyleByKeyAsync(key: string) {
-      throw new FigtionalUnsupported(`importStyleByKeyAsync('${key}')`);
+      const s = doc.getByKey(String(key));
+      if (!s?.styleType || s.styleType === 'NONE')
+        throw new FigtionalUnsupported(
+          `importStyleByKeyAsync('${key}')`,
+          'Only library styles embedded in this .fig file can be imported.',
+        );
+      return styles.wrap(s);
+    },
+    async getStyleByIdAsync(id: string) {
+      return styles.get(String(id));
+    },
+    getStyleById(id: string) {
+      return styles.get(String(id));
     },
     variables,
     util: {
@@ -2279,13 +2689,14 @@ export function createFigmaApi(ctx: ApiContext) {
     on: notSupported('figma.on'),
     once: notSupported('figma.once'),
     off: notSupported('figma.off'),
-    getLocalTextStylesAsync: async () => [],
-    getLocalPaintStylesAsync: async () => [],
-    getLocalEffectStylesAsync: async () => [],
-    getLocalGridStylesAsync: async () => [],
-    createTextStyle: notSupportedFigtional('createTextStyle', 'Use variables for design tokens.'),
-    createPaintStyle: notSupportedFigtional('createPaintStyle', 'Use variables for design tokens.'),
-    createEffectStyle: notSupportedFigtional('createEffectStyle'),
+    getLocalTextStylesAsync: async () => styles.local('TEXT'),
+    getLocalPaintStylesAsync: async () => styles.local('PAINT'),
+    getLocalEffectStylesAsync: async () => styles.local('EFFECT'),
+    getLocalGridStylesAsync: async () => styles.local('GRID'),
+    createTextStyle: () => styles.create('TEXT'),
+    createPaintStyle: () => styles.create('PAINT'),
+    createEffectStyle: () => styles.create('EFFECT'),
+    createGridStyle: () => styles.create('GRID'),
     teamLibrary: { getAvailableLibraryVariableCollectionsAsync: async () => [] },
   };
   return figma;

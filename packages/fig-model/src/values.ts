@@ -1,5 +1,5 @@
 import { type Color, type NodeChange, guidToString } from '@figtional/fig-format';
-import type { FigDocument } from './document.js';
+import type { FigDocument, SceneNode } from './document.js';
 
 const hex2 = (v: number) =>
   Math.round(Math.max(0, Math.min(1, v)) * 255)
@@ -121,6 +121,48 @@ export function resolveVariable(
   if (val.alias) {
     const target = doc.resolveVariableRef(val.alias);
     return target ? resolveVariable(doc, target, undefined, depth + 1) : undefined;
+  }
+  const raw = rawVariableData(doc, entry.variableData);
+  return raw && typeof raw === 'object' && 'alias' in raw ? undefined : raw;
+}
+
+/**
+ * The mode of `set` in effect at `node`: the nearest ancestor (or the node) with an explicit mode
+ * for that collection (`variableModeBySetMap`), else undefined (the collection's default mode).
+ */
+export function effectiveMode(doc: FigDocument, node: SceneNode, set: NodeChange): string | undefined {
+  const setId = guidToString(set.guid);
+  for (let n: SceneNode | undefined = node; n; n = n.parent) {
+    for (const e of n.data.variableModeBySetMap?.entries ?? []) {
+      const ref = e.variableSetID;
+      const s = ref ? doc.resolveVariableRef(ref.guid ? { guid: ref.guid } : ref) : undefined;
+      if (s && guidToString(s.guid) === setId && e.variableModeID) return guidToString(e.variableModeID);
+    }
+  }
+  return undefined;
+}
+
+/**
+ * A variable's value as Figma shows it at `node`: in the mode in effect there for the variable's
+ * collection, following aliases (each in the mode in effect for its own collection).
+ */
+export function resolveVariableAt(
+  doc: FigDocument,
+  node: SceneNode,
+  v: NodeChange,
+  depth = 0,
+): Exclude<VariableValue, { alias: string }> | undefined {
+  if (depth > 16) return undefined;
+  const set = collectionOf(doc, v);
+  const mode = set ? effectiveMode(doc, node, set) : undefined;
+  const wanted = mode ?? (set?.variableSetModes?.[0] ? guidToString(set.variableSetModes[0].id) : undefined);
+  const entries = v.variableDataValues?.entries ?? [];
+  const entry = entries.find((e: any) => guidToString(e.modeID) === wanted) ?? entries[0];
+  const val = entry?.variableData?.value;
+  if (!val) return undefined;
+  if (val.alias) {
+    const target = doc.resolveVariableRef(val.alias);
+    return target ? resolveVariableAt(doc, node, target, depth + 1) : undefined;
   }
   const raw = rawVariableData(doc, entry.variableData);
   return raw && typeof raw === 'object' && 'alias' in raw ? undefined : raw;

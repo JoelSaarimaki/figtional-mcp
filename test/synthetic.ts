@@ -62,7 +62,7 @@ message VariableData { VariableAnyValue value = 1; VariableDataType dataType = 2
 message Paint {
   PaintType type = 1; Color color = 2; float opacity = 3; bool visible = 4; Image image = 5; BlendMode blendMode = 6;
   ColorStop[] stops = 7; Matrix transform = 8; VariableData colorVar = 9; Image imageThumbnail = 10; string imageScaleMode = 11;
-  float scale = 12; float rotation = 13;
+  float scale = 12; float rotation = 13; uint originalImageWidth = 14; uint originalImageHeight = 15;
 }
 message Effect { EffectType type = 1; Color color = 2; Vector offset = 3; float radius = 4; bool visible = 5; BlendMode blendMode = 6; float spread = 7; bool showShadowBehindNode = 8; }
 message FontName { string family = 1; string style = 2; string postscript = 3; }
@@ -113,7 +113,20 @@ message NodeChange {
   ComponentPropRef[] componentPropRefs = 73; VariantPropSpec[] variantPropSpecs = 74; ComponentPropAssignment[] componentPropAssignments = 75;
   VariableDataMap parameterConsumptionMap = 76; GUID overriddenSymbolID = 77; bool isSymbolPublishable = 78; string componentKey = 79;
   Path[] fillGeometry = 80; Path[] strokeGeometry = 81; NodeChange[] derivedSymbolData = 82;
+  VariableModeBySetMap variableModeBySetMap = 83;
+  string key = 84; StyleType styleType = 85; string styleDescription = 86; string version = 87; string sortPosition = 88;
+  StyleId styleIdForFill = 89; StyleId styleIdForStrokeFill = 90; StyleId styleIdForText = 91; StyleId styleIdForEffect = 92;
+  StyleId styleIdForGrid = 93; TextCase textCase = 94; TextDecoration textDecoration = 95; float paragraphSpacing = 96;
+  float paragraphIndent = 97; VectorData vectorData = 98; StrokeCap strokeCap = 99;
 }
+message VectorData { uint vectorNetworkBlob = 1; Vector normalizedSize = 2; }
+enum StrokeCap { NONE = 0; ROUND = 1; SQUARE = 2; }
+enum StyleType { NONE = 0; FILL = 1; STROKE = 2; TEXT = 3; EFFECT = 4; EXPORT = 5; GRID = 6; }
+enum TextCase { ORIGINAL = 0; UPPER = 1; LOWER = 2; TITLE = 3; SMALL_CAPS = 4; SMALL_CAPS_FORCED = 5; }
+enum TextDecoration { NONE = 0; UNDERLINE = 1; STRIKETHROUGH = 2; }
+message StyleId { GUID guid = 1; AssetRef assetRef = 2; }
+message VariableModeBySetMapEntry { VariableSetID variableSetID = 1; GUID variableModeID = 2; VariableSetID variableSetExtensionID = 3; }
+message VariableModeBySetMap { VariableModeBySetMapEntry[] entries = 1; }
 message Blob { byte[] bytes = 1; }
 message Message { MessageType type = 1; NodeChange[] nodeChanges = 2; Blob[] blobs = 3; }
 `;
