@@ -10,7 +10,7 @@
  * entries under the new version, refreshes package-lock.json, and prints the remaining steps.
  * It does not commit, tag, merge or push.
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -83,16 +83,8 @@ updated = updated.replace(
 );
 writeFileSync(changelogPath, updated);
 
-// 3. Lockfile.
-execFileSync(
-  process.platform === 'win32' ? 'npm.cmd' : 'npm',
-  ['install', '--package-lock-only', '--ignore-scripts', '--silent'],
-  {
-    cwd: root,
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
-  },
-);
+// 3. Lockfile (a fixed command line, so running it through the shell is safe on every OS).
+execSync('npm install --package-lock-only --ignore-scripts --silent', { cwd: root, stdio: 'inherit' });
 
 console.log(`
 Version ${next} prepared on "development" (${level}).
