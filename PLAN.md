@@ -16,9 +16,9 @@ Secondary deliverable: a **read-only web viewer** (`figtional serve`) that rende
 
 The files must round-trip: a `.fig` written by Figtional must open in Figma without errors or lost design data.
 
-## Status (version 0.1.3)
+## Status (version 0.1.4)
 
-The current version is in `package.json` and [CHANGELOG.md](CHANGELOG.md); this table describes 0.1.3. Work for the next release happens on the `development` branch.
+The current version is in `package.json` and [CHANGELOG.md](CHANGELOG.md); this table describes 0.1.4. Work for the next release happens on the `development` branch.
 
 | Milestone | State |
 |---|---|

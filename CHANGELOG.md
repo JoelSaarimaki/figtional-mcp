@@ -6,6 +6,8 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 
 ## [Unreleased]
 
+## [0.1.4]
+
 ### Added
 
 - When a font isn't installed and its replacement affects a result, the tool says so in a separate "Figtional limitation" note: `use_figma` when it measured text with a replacement font (sizes and auto layout may differ in Figma), and `get_screenshot` / `node.screenshot()` when edited text is drawn with one. Results are otherwise unchanged.
@@ -68,7 +70,8 @@ First release.
 - **Web viewer** (`figtional serve`): page selector, layer tree, pan/zoom canvas, inspect panel, file info, prototype arrows and a basic Present mode. It reloads on file changes and only listens on `127.0.0.1`.
 - **CLI:** `mcp`, `serve`, `dump`, `inspect`, `validate` and per-command help.
 
-[Unreleased]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.3...development
+[Unreleased]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.4...development
+[0.1.4]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.0...v0.1.1
