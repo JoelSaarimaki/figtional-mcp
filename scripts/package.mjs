@@ -406,9 +406,9 @@ function mcpbManifest() {
     display_name: 'Figtional',
     version,
     description:
-      'A local stand-in for the Figma MCP server: Figma MCP’s tools, backed by .fig files in one folder you choose.',
+      "A local stand-in for the Figma MCP server: Figma MCP's tools, backed by .fig files in one folder you choose.",
     long_description:
-      'Figtional lets Claude practise with Figma MCP safely. It offers the same tools as Figma’s MCP server (get_metadata, get_design_context, get_screenshot, get_variable_defs, use_figma, …), but reads Figma files you have exported as .fig files instead of your Figma account. Claude can only open the .fig files in the folder you choose, and only edits them if you allow it. Edited files can be imported back into Figma.',
+      "Figtional lets Claude practise with Figma MCP safely. It offers the same tools as Figma's MCP server (get_metadata, get_design_context, get_screenshot, get_variable_defs, use_figma, and more), but reads Figma files you have exported as .fig files instead of your Figma account. Claude can only open the .fig files in the folder you choose, and only edits them if you allow it. Edited files can be imported back into Figma.",
     author: { name: 'Joel Saarimäki', url: 'https://github.com/JoelSaarimaki' },
     repository: { type: 'git', url: 'https://github.com/JoelSaarimaki/figtional-mcp' },
     homepage: 'https://github.com/JoelSaarimaki/figtional-mcp',
@@ -438,7 +438,7 @@ function mcpbManifest() {
       include_subfolders: {
         type: 'boolean',
         title: 'Include subfolders',
-        description: 'Also give access to .fig files in the folder’s subfolders.',
+        description: "Also give access to .fig files in the folder's subfolders.",
         default: true,
       },
       allow_editing: {

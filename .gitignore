@@ -11,3 +11,6 @@ compat-out/
 
 # Release packages (npm run package)
 release/
+
+# Local notes and screenshots, never committed.
+local-only/
