@@ -1,5 +1,5 @@
 /**
- * SVG path data ↔ Figma vector networks (docs/fig-format.md §5): parses path data (every command,
+ * SVG path data ↔ Figma vector networks (docs/fig-format.md §3): parses path data (every command,
  * absolute and relative, arcs included) into cubic subpaths, measures them, and builds the vector
  * network Figma stores in `vectorData.vectorNetworkBlob`: vertices, segments whose curve handles
  * are stored relative to their own vertex (`tangentStart`/`tangentEnd`, verified), and one region

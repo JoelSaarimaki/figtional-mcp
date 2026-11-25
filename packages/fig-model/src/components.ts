@@ -1,7 +1,7 @@
 /**
  * Components: component sets (variants), component properties, property bindings, instance
  * property values and detaching. Formats verified against the reference files
- * (docs/fig-format.md §4.8):
+ * (docs/fig-format.md §8):
  *
  * - Set: FRAME with `isStateGroup`, all property definitions in `componentPropDefs`, and
  *   `stateGroupPropertyValueOrders` [{ property, values[] }].

@@ -38,7 +38,7 @@ const SETS: ExportSet[] = [
     nodes: { 'export Home - Landing Page light': '6740:20554', 'export About L': '223:9283' },
     // About/L: several sections are dark green in Figma's export, but the file binds their fill to
     // background/brown-1 (beige in every mode). Unexplained; probably the export reflects a newer
-    // library state than the .fig. See docs/fig-format.md §4.12.
+    // library state than the .fig. See docs/fig-format.md §14.
     thresholds: { 'export About L': 0.32 },
   },
 ];

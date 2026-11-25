@@ -150,7 +150,7 @@ class SvgBuilder {
   /**
    * A paint's bound colour variable, resolved in the mode in effect at the node being drawn. Figma
    * draws bound colours this way; the paint's inline colour is often the default mode's value
-   * (verified against Figma's exports, docs/fig-format.md §5b). Falls back to the inline colour.
+   * (verified against Figma's exports, docs/fig-format.md §13). Falls back to the inline colour.
    */
   boundColor(p: any): any {
     const alias = p.colorVar?.value?.alias;

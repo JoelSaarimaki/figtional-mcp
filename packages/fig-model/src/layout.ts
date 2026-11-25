@@ -3,7 +3,7 @@
  * Figma does, so edited content gets a correct layout. Two passes, like Figma: `measure` (bottom-up
  * hug sizes) and `arrange` (top-down: fill sizes and positions).
  *
- * Semantics were derived from the .fig fields (docs/fig-format.md §4.6) and are checked by
+ * Semantics were derived from the .fig fields (docs/fig-format.md §6) and are checked by
  * re-laying out every auto-layout frame in the reference files and comparing with the layout
  * Figma stored (layout.test.ts).
  */

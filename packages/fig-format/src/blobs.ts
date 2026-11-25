@@ -1,6 +1,6 @@
 /**
  * Binary blobs referenced from nodes (`commandsBlob`, `vectorNetworkBlob`, glyph outlines).
- * See docs/fig-format.md §5.
+ * See docs/fig-format.md §3.
  */
 import { view } from './bytes.js';
 
