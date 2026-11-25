@@ -12,7 +12,7 @@ It also includes a read-only **web viewer** that shows `.fig` files the way Figm
 
 ![The Figtional viewer showing the "Responsive example" file: layer tree on the left, four mobile and tablet screens on the canvas with one card selected, and the inspect panel with its auto layout, fill and prototype settings on the right](docs/images/viewer.png)
 
-> **Status:** early development, usable for testing. All of Figma MCP's read tools work, the viewer works, and `use_figma` supports a growing subset of the Plugin API for editing (see [Limitations](#limitations)). The roadmap is in [PLAN.md](PLAN.md).
+> **Status:** version 0.1.0, early development, usable for testing. See [CHANGELOG.md](CHANGELOG.md) for what's in each version. All of Figma MCP's read tools work, the viewer works, and `use_figma` supports a growing subset of the Plugin API for editing (see [Limitations](#limitations)). The roadmap is in [PLAN.md](PLAN.md).
 
 ## Contents
 
@@ -71,7 +71,7 @@ npx figtional --help
 
 `npx figtional` works anywhere **inside** the repository folder. Figtional isn't published to npm yet, so MCP clients should start it with Node and the full path to `packages/cli/dist/bin.js`, as shown below. If you'd like a `figtional` command everywhere, run `npm link` inside `packages/cli`.
 
-After pulling new changes, run `npm install` and `npm run build` again.
+After pulling new changes, run `npm install` and `npm run build` again. The `main` branch always holds the latest release; `development` has the changes for the next one.
 
 ### 3. Export a `.fig` file from Figma
 
@@ -298,7 +298,8 @@ npm run format
 
 - **Packages:** `fig-format` (file format), `fig-model` (document, layout, editing), `fig-render` (SVG/PNG), `mcp-server` (tools and `use_figma`), `viewer` and `cli`, all under `packages/`.
 - **Reference files.** Tests that compare against real Figma exports use a local, git-ignored `references/` folder (`.fig` files with Figma's PNG/SVG exports of their frames). Those tests skip when the files are missing.
-- **Contributing.** See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute, and [docs/compat-log.md](docs/compat-log.md) for Figma import checks.
+- **Branches and releases.** Work happens on `development`; each merge into `main` is a release with a new patch version and a `vX.Y.Z` tag. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
+- **Contributing.** See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute and release, and [docs/compat-log.md](docs/compat-log.md) for Figma import checks.
 
 ## License
 

@@ -68,6 +68,13 @@ Cross-platform: the code must work on Windows, macOS and Linux. Use `node:path`/
 8. `references/` is harmless (a public website's design files, personal projects and Figma demo files). **You may read and decode its contents freely**, without asking. It is **never committed to git**: the useful outputs are the format knowledge in `docs/fig-format.md` and test results. Never modify the originals. Tests that use reference files must skip cleanly when they are missing (for example in CI or a fresh clone).
 9. `Futurice.com UI.fig` is about 270 MB / 17k nodes. Avoid O(n²) tree operations, and don't load all images eagerly.
 
+## Branches, versions and changelog
+
+- Work on `development` (or a `feature/…` / `fix/…` branch off it). **Never commit to `main` directly**: `main` only receives release merges from `development`.
+- Add every user-visible change to `[Unreleased]` in CHANGELOG.md (Added / Changed / Fixed / Removed) in the same commit.
+- **Don't bump versions** while working. A release (merging `development` into `main`) raises the patch version via `npm run release`. Raise minor or major only when the user explicitly says so. The full procedure is in CONTRIBUTING.md "Versions and releases".
+- In docs, refer to versions ("verified in 0.1.0"), not dates. Log Figma import checks in `docs/compat-log.md` with the Figtional version (plus commit for unreleased builds).
+
 ## Conventions
 
 - TypeScript strict, ESM, Node ≥ 22.15 (zstd in `node:zlib`). Tests in vitest next to the source (`*.test.ts`).

@@ -1,6 +1,6 @@
 {
   "name": "@figtional/mcp-server",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Figma-compatible MCP server backed by local .fig files.",
   "license": "MIT",

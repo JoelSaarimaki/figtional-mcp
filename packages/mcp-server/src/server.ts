@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { guidToString } from '@figtional/fig-format';
@@ -22,7 +23,8 @@ import { renderPng } from '@figtional/fig-render';
 import { type FileEntry, FileNotAvailableError, type Workspace, parseFigmaUrl } from './workspace.js';
 
 export const SERVER_NAME = 'figtional';
-export const SERVER_VERSION = '0.1.0';
+/** Figtional's version: one version for all packages, kept in package.json (see CONTRIBUTING.md). */
+export const SERVER_VERSION: string = createRequire(import.meta.url)('../package.json').version;
 
 /** Longest side of get_screenshot images, in px. */
 export const SCREENSHOT_MAX_SIZE = 2048;

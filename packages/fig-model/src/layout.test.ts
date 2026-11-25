@@ -77,7 +77,7 @@ function describeParent(n: SceneNode): string {
 }
 
 const CASES: { ref: RefName; maxWrong: number; big?: boolean }[] = [
-  // 2026-11-24: responsive 100%, ttrpg 99.4%, futurice 98.3% of auto-layout children reproduced.
+  // 0.1.0: responsive 100%, ttrpg 99.4%, futurice 98.3% of auto-layout children reproduced.
   { ref: 'responsive', maxWrong: 0 },
   { ref: 'prototyping', maxWrong: 0 },
   { ref: 'ttrpg', maxWrong: 0.007 },

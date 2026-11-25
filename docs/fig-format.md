@@ -2,7 +2,7 @@
 
 A living reference for Figma's `.fig` export format, as observed in the files in `references/`. **Add to this document whenever you learn something new** (field semantics, defaults Figma expects, things that broke an import). Mark each claim as *verified* (seen in the files or confirmed by a Figma import) or *assumed*.
 
-Last verified against: 5 reference exports from 2026-11-24, `fig-kiwi` versions **101** and **106**, schemas with 674–675 definitions. All five decode and **re-encode byte-for-byte** with `packages/fig-format` (including the 270 MB Futurice.com UI file).
+Last verified with Figtional 0.1.0 against 5 reference exports, `fig-kiwi` versions **101** and **106**, schemas with 674–675 definitions. All five decode and **re-encode byte-for-byte** with `packages/fig-format` (including the 270 MB Futurice.com UI file).
 
 ---
 
@@ -157,7 +157,7 @@ The stored `size` and `transform` values already contain the **resolved** layout
 - **Line height** (verified against stored layouts): `{ units: 'RAW', value: v }` = Plugin API `PERCENT` v × 100 % of the font size (RAW 1.5 at 24 px = 36 px); `{ units: 'PERCENT', value: 100 }` = Plugin API `AUTO`, the font's natural line height (`derivedTextData.fontMetaData[].fontLineHeight` × size, e.g. Inter 1.21); `PIXELS` = px. Text box height = lines × round(line height) (41.6 px × 3 lines = 126). Auto-width text is `ceil(advance width)` wide.
 - Style: `fontName { family, style, postscript }`, `fontSize`, `lineHeight { value, units: "PERCENT"|"PIXELS"|"RAW" }`, `letterSpacing`, `textAlignHorizontal`, `textAlignVertical`, `textAutoResize`, `textCase`, `textDecoration…`, `maxLines`, `textTruncation`, `hyperlink`, `styleIdForText`.
 - `textData`: **source of truth**. `characters` plus `lines[]` (list/indent info per line), and style override runs (`characterStyleIDs` + `styleOverrideTable`, *assumed*, to verify on mixed-style text).
-- Editing (verified by Figma import, 2026-11-24): changing `textData.characters` is enough; Figma recomputes the layout on import, whether `derivedTextData` is removed or left stale. Figtional removes it on edit. The layer `name` is not updated automatically in the file: the Plugin API renames layers with `autoRename: true` when their text changes, so our `use_figma` must do the same.
+- Editing (verified by Figma import, 0.1.0): changing `textData.characters` is enough; Figma recomputes the layout on import, whether `derivedTextData` is removed or left stale. Figtional removes it on edit. The layer `name` is not updated automatically in the file: the Plugin API renames layers with `autoRename: true` when their text changes, so our `use_figma` must do the same.
 - `derivedTextData`: a **cache**. `layoutSize`, `baselines[]` (position, width, lineHeight, character range), `glyphs[]` (`commandsBlob` → glyph outline path in `blobs`, position, fontSize, advance). The viewer can draw text from the glyph outlines without fonts. **Invalidate it on any text or style edit.**
 - Version fields (`fontVersion`, `textUserLayoutVersion`, `textBidiVersion`, `textExplicitLayoutVersion`): keep them.
 
@@ -235,7 +235,7 @@ Variable names use `/` for groups (Figma convention).
 ### 4.11 Prototyping, legacy generation, verified (Prototyping in Figma.fig)
 Older files (all guids have `sessionID: 0`) store prototypes differently.
 
-**Verified:** this file was exported from current Figma (2026-11-24) and still contains *both* the legacy flat fields and `prototypeInteractions`. Figma does not migrate the old format when it opens or saves a file. It keeps both forms side by side.
+**Verified:** this file was exported from current Figma (at Figtional 0.1.0) and still contains *both* the legacy flat fields and `prototypeInteractions`. Figma does not migrate the old format when it opens or saves a file. It keeps both forms side by side.
 
 **Policy (decided, details to confirm by experiment):**
 - **Read:** `prototypeInteractions` is the source of truth. Fall back to the flat fields only when it is absent.
@@ -267,12 +267,12 @@ Plugin API mapping for both generations: `node.reactions[]` (`trigger.type`, `ac
 - **Variable bindings in paints**: `paint.colorVar = { value: { alias: { assetRef: { key, version } } }, dataType: "ALIAS", resolvedDataType: "COLOR" }`. `paint.color` still holds the resolved value. `VARIABLE` nodes carry the `key` that the alias refers to.
 - **Library components**: copies are embedded as `SYMBOL` nodes with `sourceLibraryKey`, `componentKey`, `publishID` and `sharedSymbolVersion`, under frames on `Internal Only Canvas` (e.g. `Mutabor / Components / Input Field`). Instances refer to them through `symbolData.symbolID` like local components.
 - Counts in `Futurice.com UI.fig`: 818 SYMBOLs, of which 735 are library copies; 151 style nodes; 9,058 style references and 1,157 `colorVar` aliases, **all found inside the file** (0 missing). `Prototyping in Figma.fig`: 22 `assetRef` style references, all found.
-- **Unexplained (2026-11-24):** in Figma's PNG export of Futurice.com UI "About/L", several sections are dark green, but in the `.fig` their fill is bound to `background/brown-1` (beige in both Light and Dark, with no explicit mode or colour override anywhere above). All texts and images match after the override fixes, so the export probably reflects a newer library state than the file. Keep an eye out for another explanation (for example library variable values being re-resolved at export).
+- **Unexplained (0.1.0):** in Figma's PNG export of Futurice.com UI "About/L", several sections are dark green, but in the `.fig` their fill is bound to `background/brown-1` (beige in both Light and Dark, with no explicit mode or colour override anywhere above). All texts and images match after the override fixes, so the export probably reflects a newer library state than the file. Keep an eye out for another explanation (for example library variable values being re-resolved at export).
 - Not yet seen: an instance whose component is missing from the file. Expected when a file was exported without its libraries being available. Then the viewer shows a placeholder and `derivedSymbolData` may still hold partial data (*assumed*).
 
 ### 4.13 Editing rules (implemented in `fig-model/src/edit.ts` and the Plugin API layer)
 - New nodes get guids in a fresh session (max existing `sessionID` + 1). New variables and collections go on the internal page.
-- New nodes have no `fillGeometry`/`strokeGeometry`/`derivedTextData`; resizing removes them (and an instance's `derivedSymbolData`). Figma recomputes text layout on import (verified, M4); Figma also recomputes geometry for new and resized shapes (verified by the M8 import check, 2026-11-24).
+- New nodes have no `fillGeometry`/`strokeGeometry`/`derivedTextData`; resizing removes them (and an instance's `derivedSymbolData`). Figma recomputes text layout on import (verified, M4); Figma also recomputes geometry for new and resized shapes (verified by the M8 import check, 0.1.0).
 - Text inside an instance: if the text node is bound to a component property (`componentPropRefs` / `parameterConsumptionMap` TEXT_DATA), Figtional sets the property value on the instance that owns it (`componentPropAssignments`), because property values take precedence over overrides. Otherwise it writes a `symbolOverrides` entry with the guid path.
 - Plugin API `primaryAxisAlignItems: 'SPACE_BETWEEN'` is written as `SPACE_EVENLY` (the value Figma's own files use for "auto" spacing).
 
@@ -295,7 +295,7 @@ Plugin API mapping for both generations: `node.reactions[]` (`trigger.type`, `ac
 - Masks: a child with `mask: true` masks its later siblings (`maskType` ALPHA / VECTOR / LUMINANCE).
 - Drop shadow `radius` is the blur radius; SVG `stdDeviation = radius / 2` matches well.
 
-Render-diff results (differing pixels, pixelmatch threshold 0.15) are printed by `packages/fig-render/src/render-diff.test.ts`. On 2026-11-24 the 21 exports of the small references were all ≤ 2% different (most < 0.1%); the remaining differences are anti-aliasing and 1 px shadow edges.
+Render-diff results (differing pixels, pixelmatch threshold 0.15) are printed by `packages/fig-render/src/render-diff.test.ts`. In 0.1.0 the 21 exports of the small references were all ≤ 2% different (most < 0.1%); the remaining differences are anti-aliasing and 1 px shadow edges.
 
 ## 6. Reference material in `references/`
 

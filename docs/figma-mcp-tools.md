@@ -2,7 +2,7 @@
 
 Reference for Figtional's Figma-compatible tools (PLAN.md §5). It records what the **official Figma MCP server** exposes and how Figma's own skills expect it to behave. Figtional copies these names, parameters, response shapes and error behaviour.
 
-**Source:** the official Figma Claude Code plugin `figma@claude-plugins-official` **v2.2.157**, read locally on 2026-11-24 from `~/.claude/plugins/cache/claude-plugins-official/figma/2.2.157/`. No Figma MCP tool was called. Paths below are relative to that folder.
+**Source:** the official Figma Claude Code plugin `figma@claude-plugins-official` **v2.2.157**, read locally (for Figtional 0.1.0) from `~/.claude/plugins/cache/claude-plugins-official/figma/2.2.157/`. No Figma MCP tool was called. Paths below are relative to that folder.
 
 - `.mcp.json`: the remote server is `https://mcp.figma.com/mcp` (streamable HTTP, OAuth). It sends the header `X-Figma-Plugin-Bundle: figma_prod@2_2_157` and lists 19 tool titles in `_meta.ideToolTitles`.
 - `skills/`: the skills Claude Code loads (16 skills). `skills-figquery/` is a Cursor-only variant (see §6).
@@ -44,7 +44,7 @@ Read tools are rate-limited: Starter/View/Collab seats get up to 6 calls **per m
 
 ## 2. Tool inventory
 
-The 19 tools titled in `.mcp.json` are the core set. Other tools are mentioned only in skills and may be gated or rolling out. The **Figtional** column is the implementation state on 2026-11-25.
+The 19 tools titled in `.mcp.json` are the core set. Other tools are mentioned only in skills and may be gated or rolling out. The **Figtional** column is the implementation state in Figtional 0.1.0.
 
 | Tool | Kind | Figtional |
 |---|---|---|
@@ -259,7 +259,7 @@ Counts are occurrences inside code blocks of every `skills/**/*.md` plus `skills
 **Tier 4 (< 10):** `.textAlignHorizontal` 9 · `figma.variables.importVariableByKeyAsync` 9 · `figma.variables.getLocalVariablesAsync` 9 · `figma.createTable` 9 · `.description` 8 · `figma.getSlideGrid` 8 · `figma.createPage` 7 · `.set()` 7 · `.query()` 7 · `componentProperties` 7 · `figma.motion.*` 7 · `figma.importStyleByKeyAsync` 6 · `figma.createTextStyle` 6 · `figma.createNodeFromSvg` 6 · `.strokeWeight` 6 · `boundVariables` (read) 6 · `.setExplicitVariableModeForCollection()` 5 · `.effectStyleId` 5 · `figma.importComponentByKeyAsync` 5 · `figma.createLine` 5 · `figma.listAvailableFontsAsync` 4 · `figma.getLocalTextStylesAsync` 4 · `figma.createEffectStyle` 4 · `.setProperties()` 4 · `.insertChild()` 4 · `.insertCharacters()` 4 · `.detachInstance()` 4 · `.dashPattern` 4 · `.rotation` 4 · `.opacity` 4 · `figma.variables.createVariableAlias` 3 · `.setTextStyleIdAsync()` 3 · `.screenshot()` 3 · `.deleteCharacters()` 3 · `.layoutWrap` 3 · `.layoutGrow` 3 · `.clipsContent` 3 · `.documentationLinks` 3 · `figma.mixed` 3 · `figma.util.getSfSymbolCharacter` 3 · `figma.createVector` 3 · `figma.variables.setBoundVariableForEffect` 2 · `figma.group` 2 · `figma.createEllipse`/`createStar` 2 · `.placeholder` 2 · `.constraints` 2 · `.layoutGrids` 2 · `page.loadAsync` 2 · `.textCase` 2 · `.textAlignVertical` 2 · `.strokeAlign` 2 · `figma.getLocalEffectStylesAsync` 3 · single uses: `swapComponent`, `editComponentProperty`, `setRangeFontName`, `setRangeFontSize`, `setRangeFills`, `getRangeFontName`, `setFillStyleIdAsync`, `setStrokeStyleIdAsync`, `setEffectStyleIdAsync`, `textStyleId`, `textDecoration`, `layoutPositioning`, `counterAxisSpacing`, `blendMode`, `findChildren`, `findChild`, `exportAsync`, `getMainComponentAsync`, `figma.viewport.scrollAndZoomIntoView`.
 
 Takeaways for Figtional's subset (compared with PLAN §5.3):
-- **State in Figtional (2026-11-25).** Implemented: `createAutoLayout`, `node.query`/`node.set`, `getStyledTextSegments`, `addComponentProperty` (returns a key) and the other component property APIs, `setVariableCodeSyntax`, `variable.scopes`, `renameMode`, `findAllWithCriteria`, `node.screenshot()`, `placeholder`, `importComponentSetByKeyAsync` (embedded library sets only). Not yet: `setExplicitVariableModeForCollection`, `createNodeFromSvg`, the async style setters (`set*StyleIdAsync`), `importStyleByKeyAsync`.
+- **State in Figtional 0.1.0.** Implemented: `createAutoLayout`, `node.query`/`node.set`, `getStyledTextSegments`, `addComponentProperty` (returns a key) and the other component property APIs, `setVariableCodeSyntax`, `variable.scopes`, `renameMode`, `findAllWithCriteria`, `node.screenshot()`, `placeholder`, `importComponentSetByKeyAsync` (embedded library sets only). Not yet: `setExplicitVariableModeForCollection`, `createNodeFromSvg`, the async style setters (`set*StyleIdAsync`), `importStyleByKeyAsync`.
 - **Order:** text and paint plus `getNodeByIdAsync` and `appendChild`/`resize` cover most usage. Auto layout and variables come next. Components come after that.
 - **FigJam/Slides APIs** (`createSticky`, `createShapeWithText`, `createConnector`, `createTable`, slide grid) matter only if FigJam/Slides exports are supported.
 

@@ -108,3 +108,19 @@ describe('serve folder arguments', () => {
     expect(mcp.workspace.sources).toEqual([{ dir, recursive: false }]);
   });
 });
+
+describe('version', () => {
+  it('is the same in the root, every package and the MCP server', async () => {
+    const { readFileSync, readdirSync } = await import('node:fs');
+    const { SERVER_VERSION } = await import('@figtional/mcp-server');
+    const repo = new URL('../../../', import.meta.url);
+    const version = JSON.parse(readFileSync(new URL('package.json', repo), 'utf8')).version;
+    expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+    for (const dir of readdirSync(new URL('packages/', repo))) {
+      const pkg = JSON.parse(readFileSync(new URL(`packages/${dir}/package.json`, repo), 'utf8'));
+      expect(pkg.version, dir).toBe(version);
+    }
+    expect(SERVER_VERSION).toBe(version);
+    expect(readFileSync(new URL('CHANGELOG.md', repo), 'utf8')).toContain(`## [${version}]`);
+  });
+});
