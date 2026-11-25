@@ -6,6 +6,10 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 
 ## [Unreleased]
 
+### Changed
+
+- Docs brought up to date with 0.2.0: README's editing features and limitations, the tool reference's implementation state, PLAN's status (M9 done: releases, multi-OS tests, Futurice.com UI loads in about 1.2 s).
+
 ## [0.2.0]
 
 ### Added

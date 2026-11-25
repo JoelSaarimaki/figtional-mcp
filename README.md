@@ -34,7 +34,7 @@ It also includes a read-only **web viewer** that shows `.fig` files the way Figm
 ## Features
 
 - **Figma-compatible MCP tools**: `whoami`, `get_metadata`, `get_design_context` (React + Tailwind or HTML/CSS), `get_screenshot`, `get_variable_defs`, `search_design_system`, `get_libraries`, `get_code_connect_map`, `create_design_system_rules` and `use_figma`, with the same names and parameters as the official Figma MCP server, so existing prompts and Figma's own agent skills keep working.
-- **Editing** through Figma's Plugin API (`use_figma`): frames, auto layout, shapes, text, pages, variables, components with properties and variants. Changes are saved straight to the `.fig` file, which you can import back into Figma.
+- **Editing** through Figma's Plugin API (`use_figma`): frames, auto layout, shapes, text, pages, variables and modes, styles, images, SVG icons and vectors, components with properties and variants. Changes are saved straight to the `.fig` file, which you can import back into Figma.
 - **Explicit scope**: one file, a list of files, or a folder of `.fig` files. Nothing else is visible to the agent, and files are read-only unless you allow edits.
 - **Library support**: library components, styles and variables that Figma embeds in the export work normally.
 - **Web viewer**: pages, layers, an inspect panel, prototype arrows and a click-through preview. It reloads when an agent changes the file.
@@ -104,7 +104,7 @@ Figtional is an MCP server that talks over **stdio**: the AI client starts it as
 
 `figtional setup --print <folder>` prints the exact command and JSON for your computer without changing anything. The examples below use these placeholders; replace them with your own paths:
 
-- `/path/to/figtional-mcp/packages/cli/dist/bin.js` is the script (see above), e.g. `C:/Users/me/Documents/figtional-0.1.1/lib/figtional.mjs`.
+- `/path/to/figtional-mcp/packages/cli/dist/bin.js` is the script (see above), e.g. `C:/Users/me/Documents/figtional-0.2.0/lib/figtional.mjs`.
 - `/path/to/designs` is the folder with your `.fig` files.
 
 > **Keep the real Figma MCP server switched off** while you practise with Figtional, so the agent can't reach your Figma account through it. Both servers use the same tool names, so with both connected the agent could pick either.
@@ -262,7 +262,10 @@ return { id: card.id };
   - text (content, fonts, sizes, ranges),
   - fills, strokes, effects and corner radii,
   - pages,
-  - variables (collections, modes, values, binding to fills and spacing),
+  - variables (collections, modes, values, binding to fills and spacing) and explicit modes per frame (e.g. light and dark),
+  - paint, text, effect and grid styles: creating, applying (`set*StyleIdAsync`), editing and removing,
+  - new images (`figma.createImage`, `createImageAsync` with `data:` URLs) and image fills,
+  - SVG import (`figma.createNodeFromSvg`) and vectors (`createVector`, `vectorPaths`, `vectorNetwork`),
   - components and instances, component properties (text, boolean, instance swap), variants (`combineAsVariants`, `setProperties`) and `detachInstance`,
   - text, visibility and fill changes inside instances,
   - `node.query()`, `node.set()` and `node.screenshot()`.
@@ -298,7 +301,7 @@ figtional help <command>          # help for one command (or: figtional <command
 
 ## Limitations
 
-- **Plugin API subset.** `use_figma` supports a subset of the Plugin API. Not supported yet: creating styles, vectors/SVG import, adding new images, prototype interactions, plugin data.
+- **Plugin API subset.** `use_figma` supports a subset of the Plugin API. Not supported yet: prototype interactions, plugin data, editing grid styles, and SVG text, images, gradients, masks and filters in `createNodeFromSvg` (SVG groups are flattened). `createImageAsync` only accepts `data:` URLs, because Figtional makes no network requests.
 - **Not a sandbox.** The `use_figma` runtime (Node's `vm`) keeps scripts away from `require`, files and the network by convention, but it is not a security boundary. The access boundary is the file scope you start Figtional with.
 - **Rendering.** Screenshots and the viewer are visually faithful but not pixel-identical to Figma. Background blur isn't drawn, and angular/diamond gradients are approximated.
 - **Fonts.** Text that hasn't been edited is drawn exactly as Figma laid it out. Edited or new text uses **fonts installed on your machine**. If a font is missing, Figtional falls back to a basic font for measuring and display, but the file keeps the original font, so Figma shows it correctly after import. Because the fallback has different widths, sizes of edited text (and auto layout around it) can differ by a few pixels in Figma; `use_figma` and the screenshot tools add a "Figtional limitation" note whenever this happened.
