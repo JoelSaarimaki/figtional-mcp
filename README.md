@@ -181,15 +181,19 @@ Any MCP client that can start a stdio server works with the same command and arg
 
 ### 5. Watch the files in the viewer
 
-Start the viewer in a terminal, on the same folder you gave the agent:
+Open a terminal **in the Figtional folder** (the folder you unzipped, or your clone of the repository) and start the viewer. After `serve --open`, give it the **designs folder**, the same one you gave the agent:
 
 ```bash
+.\figtional.cmd serve --open "C:\path\to\designs"    # Windows, in the unzipped folder
+./figtional serve --open ~/path/to/designs           # macOS / Linux, in the unzipped folder
 npx figtional serve --open /path/to/designs          # in a clone of the repository
-figtional.cmd serve --open C:\path\to\designs        # Windows, in the downloaded folder
-./figtional serve --open ~/path/to/designs           # macOS / Linux, in the downloaded folder
 ```
 
-This opens <http://127.0.0.1:3846> in your browser. Keep the terminal open while you use it; Ctrl+C stops the viewer.
+- **Opening a terminal there:** on Windows, right-click the Figtional folder in File Explorer and choose **Open in Terminal**. On macOS, right-click it in Finder and choose **Services → New Terminal at Folder**, or type `cd ` (with a space) in Terminal, drag the folder into the window and press Return.
+- **Windows:** keep the `.\` in front of `figtional.cmd`. Windows' default terminal (PowerShell) needs it, and it also works in Command Prompt. Put quotes around paths with spaces.
+- **From any folder:** `figtional setup` ends by printing the viewer command with full paths for your folders. That command works without changing to the Figtional folder first.
+
+This opens <http://127.0.0.1:3846> in your browser. Keep the terminal open while you use the viewer; Ctrl+C stops it.
 
 **The viewer and the agent run side by side.** The MCP server (started by your AI app, or the Claude Desktop extension) and the viewer are separate programs that read the same files, so you can start them in any order and keep both running. Only the MCP server changes files; the viewer never does.
 

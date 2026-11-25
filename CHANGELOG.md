@@ -6,6 +6,11 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 
 ## [Unreleased]
 
+### Changed
+
+- `figtional setup` ends with a ready-to-run viewer command with full paths (on Windows in PowerShell and Command Prompt forms), instead of `figtional serve`, which only works where `figtional` is installed as a command.
+- README and the download's README.txt: start the viewer from a terminal opened in the Figtional folder, with the designs folder as the argument. On Windows the launcher is written `.\figtional.cmd`, which PowerShell needs.
+
 ## [0.1.2]
 
 ### Fixed
