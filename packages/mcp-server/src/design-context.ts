@@ -525,7 +525,8 @@ function tailwind(css: [string, string][]): string {
       out.push(`font-['${fam.replace(/\s+/g, '_')}',sans-serif]`);
       continue;
     }
-    if (k === 'border' || k === 'outline' || k.startsWith('border-')) {
+    // `border` / `outline` / `border-<side>` shorthands only: `border-radius` is `rounded` below.
+    if (k === 'border' || k === 'outline' || /^border-(top|right|bottom|left)$/.test(k)) {
       const [w, style, ...color] = v.split(' ');
       const side = k === 'border' || k === 'outline' ? '' : `-${k.split('-')[1]![0]}`;
       const base = k === 'outline' ? 'outline' : 'border';

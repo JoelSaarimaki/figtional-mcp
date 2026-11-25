@@ -6,6 +6,26 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 
 ## [Unreleased]
 
+## [0.1.1]
+
+### Added
+
+- `figtional setup`: guided setup that asks which folders the AI may read and adds Figtional to Claude Code (`claude mcp add`), Claude Desktop, Cursor and VS Code (merging their JSON config, with a `.bak` backup). `--yes`, `--client`, `--print` for scripted use.
+- `figtional serve --open` opens the viewer in the browser.
+- `FIGTIONAL_WRITABLE` and `FIGTIONAL_RECURSIVE` environment variables for `figtional mcp`.
+- A clear error when Node.js is older than 22.15, instead of a module-loading error.
+- **Downloads for each release:** `figtional-<version>.zip` (one folder for Windows, macOS and Linux, with double-click setup scripts; needs only Node.js) and `figtional-<version>.mcpb` (Claude Desktop extension with a folder picker). Built by `npm run package`, smoke-tested on all three systems and published by a GitHub Actions release workflow when a version tag is pushed.
+
+### Changed
+
+- README: the Quick start offers the download, the Claude Desktop extension and `figtional setup` before manual configuration; Git is only needed to install from source.
+- README: Limitations now lists what a `.fig` export leaves out (comments, history, sharing, live library links, Code Connect, fonts) and what it keeps.
+
+### Fixed
+
+- `get_design_context`: corner radius came out as broken Tailwind (`border-r-[20px] border-undefined border-[]`) instead of `rounded-[20px]`, on every rounded frame, rectangle and ellipse. HTML/CSS output was not affected.
+- macOS and Linux: `figtional serve` without sources (and `figtional setup`) refused every folder below `/var` and `/opt`, including macOS's temporary folders. Now only `/var`, `/tmp`, `/opt` and similar folders themselves are refused; system trees like `/usr` and `/System` still are.
+
 ## [0.1.0]
 
 First release.
@@ -22,5 +42,6 @@ First release.
 - **Web viewer** (`figtional serve`): page selector, layer tree, pan/zoom canvas, inspect panel, file info, prototype arrows and a basic Present mode. It reloads on file changes and only listens on `127.0.0.1`.
 - **CLI:** `mcp`, `serve`, `dump`, `inspect`, `validate` and per-command help.
 
-[Unreleased]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.0...development
+[Unreleased]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.1...development
+[0.1.1]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/JoelSaarimaki/figtional-mcp/releases/tag/v0.1.0

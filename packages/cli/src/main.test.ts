@@ -38,6 +38,25 @@ describe('CLI sources', () => {
     expect(explicit.listFiles().some((f) => f.key.endsWith('too-deep'))).toBe(true);
   });
 
+  it('Unix: refuses system trees, allows temp and data subfolders', () => {
+    const check = (p: string) => unsafeDefaultFolder(p, {}, '/home/me', 'darwin');
+    for (const p of ['/usr', '/usr/share/fonts', '/etc/x', '/System/Library', '/var', '/tmp', '/opt'])
+      expect(check(p), p).toMatch(/system folder/);
+    expect(check('/')).toMatch(/root/);
+    expect(check('/home/me')).toMatch(/home folder/);
+    expect(check('/Users')).toMatch(/all user folders/);
+    // macOS and Linux temp folders, external drives and /opt are ordinary places.
+    for (const p of [
+      '/var/folders/ab/xyz/T/figtional-1',
+      '/private/var/folders/ab/T/x',
+      '/tmp/designs',
+      '/opt/designs',
+      '/Volumes/Work/designs',
+      '/home/me/Documents/designs',
+    ])
+      expect(check(p), p).toBeUndefined();
+  });
+
   it('refuses to crawl roots, the home folder and system folders by default', () => {
     const home = join(dir, 'Users', 'me');
     const env = { WINDIR: join(dir, 'Windows'), ProgramFiles: join(dir, 'Program Files') };

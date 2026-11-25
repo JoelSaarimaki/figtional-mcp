@@ -1,0 +1,98 @@
+name: Release
+
+# Pushing a tag vX.Y.Z (see CONTRIBUTING.md "Versions and releases") builds the download packages
+# once, tests the same zip on Windows, macOS and Linux, and publishes a GitHub release with them.
+# Pull requests into main (release PRs) build and test the packages without publishing, and so
+# can a manual run (Actions > Release > Run workflow).
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check that the tag matches the version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(node -p "require('./package.json').version")
+          test "v$version" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} != package.json $version"; exit 1; }
+      - run: npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: release/
+          if-no-files-found: error
+
+  smoke:
+    needs: package
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest, ubuntu-24.04-arm]
+        node: ['22.15.0', '24']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: packages
+      - name: Unpack (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Expand-Archive -Path (Get-Item packages/figtional-*.zip) -DestinationPath unpacked
+      - name: Unpack (macOS, Linux)
+        if: runner.os != 'Windows'
+        run: unzip -q packages/figtional-*.zip -d unpacked
+      - name: Smoke test
+        shell: bash
+        run: node scripts/smoke-release.mjs unpacked/figtional-*
+
+  publish:
+    needs: smoke
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: release
+      - name: Release notes from CHANGELOG.md
+        run: |
+          node -e '
+            const fs = require("fs");
+            const v = process.env.GITHUB_REF_NAME.replace(/^v/, "");
+            const parts = fs.readFileSync("CHANGELOG.md", "utf8").split(/\n## \[/);
+            const section = parts.find((p) => p.startsWith(v + "]"));
+            if (!section) throw new Error("CHANGELOG.md has no section for " + v);
+            const body = section.slice(section.indexOf("\n") + 1).split(/\n\[[^\]]+\]: /)[0].trim();
+            const intro = "Download **figtional-" + v + ".zip** (Windows, macOS, Linux; needs Node.js 22.15+) and run its setup, or install **figtional-" + v + ".mcpb** in Claude Desktop. See the README for details.";
+            fs.writeFileSync("notes.md", intro + "\n\n" + body + "\n");
+          '
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/figtional-* \
+            --title "Figtional ${GITHUB_REF_NAME#v}" --notes-file notes.md --verify-tag

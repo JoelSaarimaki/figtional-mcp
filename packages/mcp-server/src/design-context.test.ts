@@ -52,6 +52,26 @@ describe('design context', () => {
     expect((await fetchStatus(r.assets[0]!.url.replace(/[0-9a-f]{40}/, 'f'.repeat(40)))).status).toBe(404);
   });
 
+  it('corner radius becomes rounded-[…], not a border', async () => {
+    const d = doc();
+    const node = d.getNodeById('1:2')!;
+    node.data.cornerRadius = 20;
+    const r = await designContext(d, 'a', node, assets, { target: 'react-tailwind' });
+    expect(r.code).toContain('rounded-[20px]');
+    expect(r.code).not.toMatch(/border-r-\[|border-undefined|border-\[\]/);
+
+    Object.assign(node.data, {
+      rectangleCornerRadiiIndependent: true,
+      rectangleTopLeftCornerRadius: 20,
+      rectangleTopRightCornerRadius: 0,
+      rectangleBottomRightCornerRadius: 8,
+      rectangleBottomLeftCornerRadius: 0,
+    });
+    const mixed = await designContext(d, 'a', node, assets, { target: 'react-tailwind' });
+    expect(mixed.code).toContain('rounded-[20px_0px_8px_0px]');
+    expect(mixed.code).not.toContain('border-');
+  });
+
   it('HTML with inline CSS', async () => {
     const d = doc();
     const r = await designContext(d, 'a', d.getNodeById('1:2')!, assets, { target: 'html-css' });

@@ -3,3 +3,4 @@ node_modules/
 references/
 package-lock.json
 *.md
+release/
