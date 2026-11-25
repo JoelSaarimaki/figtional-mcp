@@ -1,12 +1,22 @@
 /** Plugin API node members: Explicit variable modes and variable bindings. Mixed into the node class by createFigmaApi. */
 import { type NodeChange, guidToString } from '@figtional/fig-format';
-import { collectionInfo, effectiveMode, resolveVariable } from '@figtional/fig-model';
+import { collectionInfo, effectiveMode } from '@figtional/fig-model';
 import { FIELD_TO_VARIABLE, collectionById, variableById } from './plugin-values.js';
 import { FigtionalUnsupported } from './unsupported.js';
 import { NodeMembers, type PluginRuntime } from './plugin-runtime.js';
 
 export function variablesMembers(rt: PluginRuntime) {
-  const { FRAMELIKE, doc, editRaw, requireFonts, scene, session, syncBoundColors, typeError } = rt;
+  const {
+    FRAMELIKE,
+    applyBoundValue,
+    doc,
+    editRaw,
+    requireFonts,
+    scene,
+    session,
+    syncBoundValues,
+    typeError,
+  } = rt;
   return class VariablesMembers extends NodeMembers {
     // ------------------------------------------------ explicit variable modes
     requireModes(prop: string) {
@@ -51,7 +61,7 @@ export function variablesMembers(rt: PluginRuntime) {
       const entries = this.modeEntriesWithout(c);
       entries.push({ variableSetID, variableModeID: { ...mode.id } });
       editRaw(this.id, { variableModeBySetMap: { entries } });
-      syncBoundColors(this.id);
+      syncBoundValues(this.id);
     }
     clearExplicitVariableModeForCollection(collection: unknown) {
       this.requireModes('clearExplicitVariableModeForCollection');
@@ -63,7 +73,7 @@ export function variablesMembers(rt: PluginRuntime) {
         delete session.raw(this.id).variableModeBySetMap;
         session.markDirty(this.id);
       }
-      syncBoundColors(this.id);
+      syncBoundValues(this.id);
     }
     modeEntriesWithout(c: NodeChange): any[] {
       const id = guidToString(c.guid);
@@ -123,27 +133,12 @@ export function variablesMembers(rt: PluginRuntime) {
           },
           variableField: vf,
         });
-        // Apply the current value so the file and renders are consistent.
-        const val = resolveVariable(doc, v);
-        if (typeof val === 'number') {
-          const setters: Record<string, () => void> = {
-            itemSpacing: () => (this.itemSpacing = val),
-            paddingLeft: () => (this.paddingLeft = val),
-            paddingRight: () => (this.paddingRight = val),
-            paddingTop: () => (this.paddingTop = val),
-            paddingBottom: () => (this.paddingBottom = val),
-            cornerRadius: () => (this.cornerRadius = val),
-            opacity: () => (this.opacity = Math.max(0, Math.min(1, val > 1 ? val / 100 : val))),
-            strokeWeight: () => (this.strokeWeight = val),
-            fontSize: () => (this.fontSize = val),
-            width: () => this.resize(val, this.height),
-            height: () => this.resize(this.width, val),
-          };
-          setters[field]?.();
-        } else if (typeof val === 'boolean' && field === 'visible') this.visible = val;
       }
       raw.variableConsumptionMap = { entries };
       session.markDirty(this.id);
+      // Store the value in the mode in effect here, so the file and renders are consistent.
+      const bound = variable ? variableById(doc, variable.id) : undefined;
+      if (bound) applyBoundValue(this._s, vf, bound);
     }
   };
 }

@@ -13,6 +13,8 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 - `use_figma`: setting `characters` renamed a text layer even after its `name` was set explicitly. Setting `name` now turns `autoRename` off, as in Figma, and `autoRename` can be read and set.
 - `use_figma`: components and component sets had no `key`, so `importComponentByKeyAsync` couldn't find local components and instance-swap `preferredValues` lost their keys.
 - `use_figma`: an object returned twice in a result (e.g. `{ x: o, y: o }`) was shown as `[Circular]`; only real cycles are now.
+- `use_figma`: binding a single corner radius (`topLeftRadius` etc.) to a variable left the corner at 0, and other bound numbers took the default mode's value. Bound values are now applied in the mode in effect at the layer.
+- `use_figma`: STRING and BOOLEAN variables (e.g. bound text and visibility) didn't follow explicit mode changes; only colours did. All bound values now follow the mode.
 
 ### Changed
 

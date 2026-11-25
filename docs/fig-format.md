@@ -270,7 +270,7 @@ The stored `size` and `transform` already contain the **resolved** layout, so un
 - **Inline colours don't follow explicit modes in Figma's files:** under explicit modes, a bound paint's inline `color` equals the effective mode's value in only 155 cases, the default mode's value in 1,632 and neither in 1,895 (Futurice). Figma's PNG exports resolve the variable in the effective mode (§13).
 - **But after importing a file, Figma shows the stored inline colour**: it doesn't re-resolve bound colours right away, even though its own exports resolve them live (verified, new-tools import check: a Dark card that kept its Light inline colour imported light).
 
-**Figtional writes** `{ guid }` for local collections (verified: Figma shows the mode in the Layer panel) and `{ assetRef: { key, version } }` for embedded library collections. When it sets or clears a mode, it also rewrites the inline colours of bound paints in the subtree to the effective mode's values (verified: the card then imported dark, new-tools import check, 0.1.4 + `a2b1a60`, released as 0.2.0).
+**Figtional writes** `{ guid }` for local collections (verified: Figma shows the mode in the Layer panel) and `{ assetRef: { key, version } }` for embedded library collections. When it sets or clears a mode, it also rewrites the stored values of everything bound in the subtree (paint colours, and fields in `variableConsumptionMap` such as text, visibility and numbers) to the effective mode's values (verified: the card then imported dark, new-tools import check, 0.1.4 + `a2b1a60`, released as 0.2.0).
 
 ## 10. Styles, verified
 

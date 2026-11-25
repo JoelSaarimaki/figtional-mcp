@@ -27,11 +27,13 @@ import {
   subpathBounds,
   subpathsToNetwork,
   transformSubpaths,
+  textDataOf,
 } from '@figtional/fig-model';
 import { fontFallbacksIn, renderPng } from '@figtional/fig-render';
 
 import { FigtionalUnsupported } from './unsupported.js';
 import {
+  FIELD_TO_VARIABLE,
   IDENTITY_T,
   MIXED,
   clamp01,
@@ -143,11 +145,50 @@ export function createFigmaApi(ctx: ApiContext) {
       : decodeVectorNetwork(doc.blobs[i]!.bytes);
   };
 
+  const VARIABLE_TO_FIELD: Record<string, string> = Object.fromEntries(
+    Object.entries(FIELD_TO_VARIABLE).map(([k, v]) => [v, k]),
+  );
+
   /**
-   * After a mode change, stores each bound paint's colour as resolved in the mode now in effect,
-   * so the inline colour (what a viewer without variable support shows) matches the variable.
+   * Writes a bound variable's value, resolved in the mode in effect at the node, into the bound
+   * field (Figma shows the stored value after import, see docs/fig-format.md §9.3). Text values
+   * are written directly, so a mode change doesn't need the fonts loaded (as in Figma).
    */
-  const syncBoundColors = (rootId: string) => {
+  const applyBoundValue = (n: SceneNode, variableField: string, v: NodeChange) => {
+    const field = VARIABLE_TO_FIELD[variableField];
+    const val = resolveVariableAt(doc, n, v);
+    if (!field || val === undefined || val === null || typeof val === 'object') return;
+    const raw = session.raw(n.id);
+    if (field === 'characters') {
+      if (n.figType !== 'TEXT') return;
+      raw.textData = { ...textDataOf(String(val)) };
+      delete raw.derivedTextData;
+      session.markText(n.id);
+    } else if (field === 'visible') {
+      raw.visible = val === true || val === 'true';
+      session.markDirty(n.id);
+    } else if (typeof val === 'number') {
+      if (field === 'fontSize') raw.fontSize = val;
+      else if (field === 'letterSpacing') raw.letterSpacing = { value: val, units: 'PIXELS' };
+      else if (field === 'lineHeight') raw.lineHeight = { value: val, units: 'PIXELS' };
+      else {
+        const node = wrap(n);
+        if (field === 'opacity') node.opacity = Math.max(0, Math.min(1, val > 1 ? val / 100 : val));
+        else if (field === 'width') node.resize(val, node.height);
+        else if (field === 'height') node.resize(node.width, val);
+        else if (field in node) node[field] = val;
+        return;
+      }
+      if (n.figType === 'TEXT') session.markText(n.id);
+      else session.markDirty(n.id);
+    }
+  };
+
+  /**
+   * After a mode change, stores each bound value (paint colours and every bound field) as resolved
+   * in the mode now in effect, so the stored values match the variables.
+   */
+  const syncBoundValues = (rootId: string) => {
     scene(rootId).walk((n) => {
       if (n.isInstanceSublayer) return false;
       let changed = false;
@@ -163,6 +204,11 @@ export function createFigmaApi(ctx: ApiContext) {
         }
       }
       if (changed) session.markDirty(n.id);
+      for (const e of n.data.variableConsumptionMap?.entries ?? []) {
+        const alias = e.variableData?.value?.alias;
+        const v = alias ? doc.resolveVariableRef(alias) : undefined;
+        if (v) applyBoundValue(n, e.variableField, v);
+      }
       return true;
     });
   };
@@ -701,7 +747,8 @@ export function createFigmaApi(ctx: ApiContext) {
     session,
     setTextProperty,
     styles,
-    syncBoundColors,
+    applyBoundValue,
+    syncBoundValues,
     typeError,
     vectorFields,
     wrap,

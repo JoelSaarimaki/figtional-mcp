@@ -330,6 +330,34 @@ describe('use_figma edits', () => {
     expect(JSON.parse(r.text)).toEqual({ auto: 'First', named: 'Title', autoRename: false });
   });
 
+  it('applies bound numbers, strings and booleans in the mode in effect, also per corner', async () => {
+    const r = await run(`
+      const c = figma.variables.createVariableCollection('Content');
+      c.renameMode(c.defaultModeId, 'English');
+      const fi = c.addMode('Finnish');
+      const title = figma.variables.createVariable('title', c, 'STRING');
+      title.setValueForMode(c.defaultModeId, 'Settings'); title.setValueForMode(fi, 'Asetukset');
+      const show = figma.variables.createVariable('show', c, 'BOOLEAN');
+      show.setValueForMode(c.defaultModeId, true); show.setValueForMode(fi, false);
+      const radius = figma.variables.createVariable('radius', c, 'FLOAT');
+      radius.setValueForMode(c.defaultModeId, 8); radius.setValueForMode(fi, 20);
+      const frame = figma.createFrame();
+      const t = figma.createText(); t.characters = 'x'; frame.appendChild(t);
+      t.setBoundVariable('characters', title);
+      const row = figma.createRectangle(); frame.appendChild(row);
+      row.setBoundVariable('visible', show);
+      row.setBoundVariable('topLeftRadius', radius);
+      const english = { text: t.characters, visible: row.visible, tl: row.topLeftRadius, tr: row.topRightRadius };
+      frame.setExplicitVariableModeForCollection(c, fi);
+      return { english, finnish: { text: t.characters, visible: row.visible, tl: row.topLeftRadius } };
+    `);
+    expect(r.ok, r.text).toBe(true);
+    expect(JSON.parse(r.text)).toEqual({
+      english: { text: 'Settings', visible: true, tl: 8, tr: 0 },
+      finnish: { text: 'Asetukset', visible: false, tl: 20 },
+    });
+  });
+
   it('accumulates edits in --out copies and keeps the original untouched', async () => {
     const before = readFileSync(file);
     const out = join(dir, 'out');
