@@ -114,7 +114,15 @@ message NodeChange {
   VariableDataMap parameterConsumptionMap = 76; GUID overriddenSymbolID = 77; bool isSymbolPublishable = 78; string componentKey = 79;
   Path[] fillGeometry = 80; Path[] strokeGeometry = 81; NodeChange[] derivedSymbolData = 82;
   VariableModeBySetMap variableModeBySetMap = 83;
+  string key = 84; StyleType styleType = 85; string styleDescription = 86; string version = 87; string sortPosition = 88;
+  StyleId styleIdForFill = 89; StyleId styleIdForStrokeFill = 90; StyleId styleIdForText = 91; StyleId styleIdForEffect = 92;
+  StyleId styleIdForGrid = 93; TextCase textCase = 94; TextDecoration textDecoration = 95; float paragraphSpacing = 96;
+  float paragraphIndent = 97;
 }
+enum StyleType { NONE = 0; FILL = 1; STROKE = 2; TEXT = 3; EFFECT = 4; EXPORT = 5; GRID = 6; }
+enum TextCase { ORIGINAL = 0; UPPER = 1; LOWER = 2; TITLE = 3; SMALL_CAPS = 4; SMALL_CAPS_FORCED = 5; }
+enum TextDecoration { NONE = 0; UNDERLINE = 1; STRIKETHROUGH = 2; }
+message StyleId { GUID guid = 1; AssetRef assetRef = 2; }
 message VariableModeBySetMapEntry { VariableSetID variableSetID = 1; GUID variableModeID = 2; VariableSetID variableSetExtensionID = 3; }
 message VariableModeBySetMap { VariableModeBySetMapEntry[] entries = 1; }
 message Blob { byte[] bytes = 1; }

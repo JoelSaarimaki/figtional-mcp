@@ -24,13 +24,10 @@ import {
 } from '@figtional/fig-model';
 import { fontFallbacksIn, renderPng } from '@figtional/fig-render';
 
-export class FigtionalUnsupported extends Error {
-  constructor(api: string, detail = '') {
-    super(
-      `NotSupportedInFigtional: ${api}. This is a limitation of Figtional (the local Figma MCP stand-in), not of Figma.${detail ? ' ' + detail : ''}`,
-    );
-  }
-}
+import { FigtionalUnsupported } from './unsupported.js';
+import { createStyleApi } from './plugin-styles.js';
+
+export { FigtionalUnsupported };
 
 export interface ApiContext {
   doc: FigDocument;
@@ -283,6 +280,24 @@ export function createFigmaApi(ctx: ApiContext) {
         throw new Error(`Cannot write to node with unloaded font "${f.family} ${f.style}"`);
     }
   };
+
+  const styles = createStyleApi({
+    doc,
+    session,
+    paintToPlugin: (p) => paintToPlugin(doc, p),
+    paintFromPlugin: (p, path) => paintFromPlugin(doc, p, path),
+    effectToPlugin,
+    effectFromPlugin,
+    isFontLoaded,
+  });
+  /** Setting a style-controlled value directly detaches the node from that style (as in Figma). */
+  const detachStyle = (id: string, refField: string) => {
+    if (scene(id).isInstanceSublayer) return;
+    const raw = session.raw(id);
+    if (raw[refField]) delete raw[refField];
+  };
+  const dynamicPage = (prop: string, asyncName: string) =>
+    new Error(`Cannot call ${prop} setter with documentAccess: dynamic-page. Use node.${asyncName} instead.`);
 
   const wrap = (s: SceneNode | undefined): any => {
     if (!s) return null;
@@ -640,6 +655,7 @@ export function createFigmaApi(ctx: ApiContext) {
       if (!Array.isArray(v)) throw new Error('fills must be an array of paints');
       if (this.type === 'TEXT') requireFonts(this._d);
       editRaw(this.id, { fillPaints: v.map((p, i) => paintFromPlugin(doc, p, `[${i}]`)) });
+      detachStyle(this.id, 'styleIdForFill');
     }
     get strokes() {
       return deepFreeze((this._d.strokePaints ?? []).map((p: any) => paintToPlugin(doc, p)));
@@ -647,6 +663,7 @@ export function createFigmaApi(ctx: ApiContext) {
     set strokes(v: any[]) {
       if (!Array.isArray(v)) throw new Error('strokes must be an array of paints');
       editRaw(this.id, { strokePaints: v.map((p, i) => paintFromPlugin(doc, p, `[${i}]`)) });
+      detachStyle(this.id, 'styleIdForStrokeFill');
       if (this._d.strokeWeight === undefined) editRaw(this.id, { strokeWeight: 1 });
       session.invalidateGeometry(session.raw(this.id));
     }
@@ -712,6 +729,7 @@ export function createFigmaApi(ctx: ApiContext) {
     }
     set effects(v: any[]) {
       editRaw(this.id, { effects: v.map((e, i) => effectFromPlugin(e, `[${i}]`)) });
+      detachStyle(this.id, 'styleIdForEffect');
     }
     get cornerRadius(): any {
       return this._d.rectangleCornerRadiiIndependent ? MIXED : (this._d.cornerRadius ?? 0);
@@ -1129,6 +1147,7 @@ export function createFigmaApi(ctx: ApiContext) {
         );
       requireFonts(this._d);
       editRaw(this.id, { fontName: { family: v.family, style: v.style, postscript: '' } }, { text: true });
+      detachStyle(this.id, 'styleIdForText');
     }
     get fontSize() {
       this.requireText('fontSize');
@@ -1138,6 +1157,7 @@ export function createFigmaApi(ctx: ApiContext) {
       this.requireText('fontSize');
       requireFonts(this._d);
       editRaw(this.id, { fontSize: Number(v) }, { text: true });
+      detachStyle(this.id, 'styleIdForText');
     }
     get lineHeight() {
       this.requireText('lineHeight');
@@ -1159,6 +1179,7 @@ export function createFigmaApi(ctx: ApiContext) {
             ? { value: (v.value ?? 100) / 100, units: 'RAW' }
             : { value: v.value ?? 0, units: 'PIXELS' };
       editRaw(this.id, { lineHeight: lh }, { text: true });
+      detachStyle(this.id, 'styleIdForText');
     }
     get letterSpacing() {
       this.requireText('letterSpacing');
@@ -1175,6 +1196,7 @@ export function createFigmaApi(ctx: ApiContext) {
         { letterSpacing: { value: Number(v.value), units: v.unit === 'PIXELS' ? 'PIXELS' : 'PERCENT' } },
         { text: true },
       );
+      detachStyle(this.id, 'styleIdForText');
     }
     get textAlignHorizontal() {
       this.requireText('textAlignHorizontal');
@@ -1213,6 +1235,7 @@ export function createFigmaApi(ctx: ApiContext) {
       this.requireText('textCase');
       requireFonts(this._d);
       editRaw(this.id, { textCase: v }, { text: true });
+      detachStyle(this.id, 'styleIdForText');
     }
     get textDecoration() {
       this.requireText('textDecoration');
@@ -1222,6 +1245,7 @@ export function createFigmaApi(ctx: ApiContext) {
       this.requireText('textDecoration');
       requireFonts(this._d);
       editRaw(this.id, { textDecoration: v });
+      detachStyle(this.id, 'styleIdForText');
     }
     get hasMissingFont() {
       return false;
@@ -1326,12 +1350,57 @@ export function createFigmaApi(ctx: ApiContext) {
       const sizes = new Set(segs.map((s) => s.fontSize));
       return sizes.size === 1 ? segs[0].fontSize : MIXED;
     }
-    async setTextStyleIdAsync(_id: string) {
-      throw new FigtionalUnsupported('setTextStyleIdAsync', 'Set the typography properties directly.');
+
+    // ------------------------------------------------ styles
+    get fillStyleId() {
+      return styles.idFor(this._d, 'styleIdForFill');
+    }
+    set fillStyleId(_v: string) {
+      throw dynamicPage('fillStyleId', 'setFillStyleIdAsync');
+    }
+    async setFillStyleIdAsync(id: string) {
+      styles.applyToNode(this.id, 'styleIdForFill', String(id ?? ''), editRaw);
+    }
+    get strokeStyleId() {
+      return styles.idFor(this._d, 'styleIdForStrokeFill');
+    }
+    set strokeStyleId(_v: string) {
+      throw dynamicPage('strokeStyleId', 'setStrokeStyleIdAsync');
+    }
+    async setStrokeStyleIdAsync(id: string) {
+      styles.applyToNode(this.id, 'styleIdForStrokeFill', String(id ?? ''), editRaw);
+      if (id && this._d.strokeWeight === undefined) editRaw(this.id, { strokeWeight: 1 });
+    }
+    get effectStyleId() {
+      return styles.idFor(this._d, 'styleIdForEffect');
+    }
+    set effectStyleId(_v: string) {
+      throw dynamicPage('effectStyleId', 'setEffectStyleIdAsync');
+    }
+    async setEffectStyleIdAsync(id: string) {
+      styles.applyToNode(this.id, 'styleIdForEffect', String(id ?? ''), editRaw);
+    }
+    get gridStyleId() {
+      return styles.idFor(this._d, 'styleIdForGrid');
+    }
+    set gridStyleId(_v: string) {
+      throw dynamicPage('gridStyleId', 'setGridStyleIdAsync');
+    }
+    async setGridStyleIdAsync(id: string) {
+      if (!FRAMELIKE.includes(this.type)) throw typeError('setGridStyleIdAsync', this.type);
+      styles.applyToNode(this.id, 'styleIdForGrid', String(id ?? ''), editRaw);
     }
     get textStyleId() {
-      const s = doc.resolveStyleRef(this._d.styleIdForText);
-      return s ? `S:${s.key ?? guidToString(s.guid)}` : '';
+      this.requireText('textStyleId');
+      return styles.idFor(this._d, 'styleIdForText');
+    }
+    set textStyleId(_v: string) {
+      throw dynamicPage('textStyleId', 'setTextStyleIdAsync');
+    }
+    async setTextStyleIdAsync(id: string) {
+      this.requireText('setTextStyleIdAsync');
+      requireFonts(this._d);
+      styles.applyToNode(this.id, 'styleIdForText', String(id ?? ''), editRaw);
     }
 
     // ------------------------------------------------ components & instances
@@ -2312,7 +2381,19 @@ export function createFigmaApi(ctx: ApiContext) {
       return wrap(scene(guidToString(c.guid)));
     },
     async importStyleByKeyAsync(key: string) {
-      throw new FigtionalUnsupported(`importStyleByKeyAsync('${key}')`);
+      const s = doc.getByKey(String(key));
+      if (!s?.styleType || s.styleType === 'NONE')
+        throw new FigtionalUnsupported(
+          `importStyleByKeyAsync('${key}')`,
+          'Only library styles embedded in this .fig file can be imported.',
+        );
+      return styles.wrap(s);
+    },
+    async getStyleByIdAsync(id: string) {
+      return styles.get(String(id));
+    },
+    getStyleById(id: string) {
+      return styles.get(String(id));
     },
     variables,
     util: {
@@ -2346,13 +2427,14 @@ export function createFigmaApi(ctx: ApiContext) {
     on: notSupported('figma.on'),
     once: notSupported('figma.once'),
     off: notSupported('figma.off'),
-    getLocalTextStylesAsync: async () => [],
-    getLocalPaintStylesAsync: async () => [],
-    getLocalEffectStylesAsync: async () => [],
-    getLocalGridStylesAsync: async () => [],
-    createTextStyle: notSupportedFigtional('createTextStyle', 'Use variables for design tokens.'),
-    createPaintStyle: notSupportedFigtional('createPaintStyle', 'Use variables for design tokens.'),
-    createEffectStyle: notSupportedFigtional('createEffectStyle'),
+    getLocalTextStylesAsync: async () => styles.local('TEXT'),
+    getLocalPaintStylesAsync: async () => styles.local('PAINT'),
+    getLocalEffectStylesAsync: async () => styles.local('EFFECT'),
+    getLocalGridStylesAsync: async () => styles.local('GRID'),
+    createTextStyle: () => styles.create('TEXT'),
+    createPaintStyle: () => styles.create('PAINT'),
+    createEffectStyle: () => styles.create('EFFECT'),
+    createGridStyle: () => styles.create('GRID'),
     teamLibrary: { getAvailableLibraryVariableCollectionsAsync: async () => [] },
   };
   return figma;

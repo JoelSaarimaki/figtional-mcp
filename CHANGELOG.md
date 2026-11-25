@@ -8,6 +8,7 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 
 ### Added
 
+- `use_figma`: paint, text, effect and grid styles: `figma.createPaintStyle()` and friends, `getLocal*StylesAsync`, `getStyleByIdAsync`, `importStyleByKeyAsync` for styles embedded in the file, and applying them with `setFillStyleIdAsync`, `setStrokeStyleIdAsync`, `setEffectStyleIdAsync`, `setGridStyleIdAsync` and `setTextStyleIdAsync`. Layers using a style follow changes to it; setting a value directly detaches the style, as in Figma.
 - `use_figma`: explicit variable modes (`setExplicitVariableModeForCollection`, `clearExplicitVariableModeForCollection`, `explicitVariableModes`, `resolvedVariableModes`) on frames, components, component sets, instances and sections, e.g. for light and dark themes.
 
 ### Changed
