@@ -113,7 +113,10 @@ message NodeChange {
   ComponentPropRef[] componentPropRefs = 73; VariantPropSpec[] variantPropSpecs = 74; ComponentPropAssignment[] componentPropAssignments = 75;
   VariableDataMap parameterConsumptionMap = 76; GUID overriddenSymbolID = 77; bool isSymbolPublishable = 78; string componentKey = 79;
   Path[] fillGeometry = 80; Path[] strokeGeometry = 81; NodeChange[] derivedSymbolData = 82;
+  VariableModeBySetMap variableModeBySetMap = 83;
 }
+message VariableModeBySetMapEntry { VariableSetID variableSetID = 1; GUID variableModeID = 2; VariableSetID variableSetExtensionID = 3; }
+message VariableModeBySetMap { VariableModeBySetMapEntry[] entries = 1; }
 message Blob { byte[] bytes = 1; }
 message Message { MessageType type = 1; NodeChange[] nodeChanges = 2; Blob[] blobs = 3; }
 `;

@@ -15,6 +15,7 @@ import {
   type SceneNode,
   availableFonts,
   collectionInfo,
+  effectiveMode,
   isInternalPage,
   normalizeNodeId,
   resolveVariable,
@@ -1485,6 +1486,72 @@ export function createFigmaApi(ctx: ApiContext) {
     }
     deleteComponentProperty(key: string) {
       components.deleteProperty(this.definitionOwnerId('deleteComponentProperty'), key);
+    }
+
+    // ------------------------------------------------ explicit variable modes
+    private requireModes(prop: string) {
+      if (![...FRAMELIKE, 'SECTION'].includes(this.type)) throw typeError(prop, this.type);
+    }
+    private modeCollection(collection: unknown): NodeChange {
+      const id = typeof collection === 'string' ? collection : (collection as { id?: string } | null)?.id;
+      const c = id ? collectionById(doc, id) : undefined;
+      if (!c) throw new Error(`Variable collection not found: ${String(id)}`);
+      return c;
+    }
+    get explicitVariableModes(): Record<string, string> {
+      this.requireModes('explicitVariableModes');
+      const out: Record<string, string> = {};
+      for (const e of this._d.variableModeBySetMap?.entries ?? []) {
+        const ref = e.variableSetID;
+        const c = ref ? doc.resolveVariableRef(ref.guid ? { guid: ref.guid } : ref) : undefined;
+        if (c && e.variableModeID)
+          out[`VariableCollectionId:${guidToString(c.guid)}`] = guidToString(e.variableModeID);
+      }
+      return out;
+    }
+    get resolvedVariableModes(): Record<string, string> {
+      const out: Record<string, string> = {};
+      const s = scene(this.id);
+      for (const c of doc.variableCollections) {
+        const mode = effectiveMode(doc, s, c) ?? collectionInfo(doc, c).defaultModeId;
+        if (mode) out[`VariableCollectionId:${guidToString(c.guid)}`] = mode;
+      }
+      return out;
+    }
+    setExplicitVariableModeForCollection(collection: unknown, modeId: string) {
+      this.requireModes('setExplicitVariableModeForCollection');
+      const c = this.modeCollection(collection);
+      const mode = (c.variableSetModes ?? []).find((m: any) => guidToString(m.id) === String(modeId));
+      if (!mode) throw new Error(`Mode ${String(modeId)} not found in collection "${c.name ?? ''}"`);
+      // Library collections are referenced by key (as in Figma's files), local ones by guid.
+      const variableSetID =
+        c.sourceLibraryKey && c.key
+          ? { assetRef: { key: c.key, ...(c.version ? { version: c.version } : {}) } }
+          : { guid: { ...c.guid } };
+      const entries = this.modeEntriesWithout(c);
+      entries.push({ variableSetID, variableModeID: { ...mode.id } });
+      editRaw(this.id, { variableModeBySetMap: { entries } });
+    }
+    clearExplicitVariableModeForCollection(collection: unknown) {
+      this.requireModes('clearExplicitVariableModeForCollection');
+      const entries = this.modeEntriesWithout(this.modeCollection(collection));
+      if (entries.length) editRaw(this.id, { variableModeBySetMap: { entries } });
+      else if (this._d.variableModeBySetMap) {
+        if (scene(this.id).isInstanceSublayer)
+          throw new FigtionalUnsupported('clearing explicit variable modes on a layer inside an instance');
+        delete session.raw(this.id).variableModeBySetMap;
+        session.markDirty(this.id);
+      }
+    }
+    private modeEntriesWithout(c: NodeChange): any[] {
+      const id = guidToString(c.guid);
+      return (this._d.variableModeBySetMap?.entries ?? [])
+        .filter((e: any) => {
+          const ref = e.variableSetID;
+          const set = ref ? doc.resolveVariableRef(ref.guid ? { guid: ref.guid } : ref) : undefined;
+          return !set || guidToString(set.guid) !== id;
+        })
+        .map((e: any) => structuredClone(e));
     }
 
     // ------------------------------------------------ variables

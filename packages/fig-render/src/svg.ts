@@ -10,6 +10,7 @@ import {
   type SceneNode,
   invert,
   isGroupData,
+  resolveVariableAt,
   measureText,
   multiply,
   styleWeight,
@@ -94,6 +95,8 @@ class SvgBuilder {
   private nextId = 0;
   readonly warnings = new Set<string>();
   private imageCache = new Map<string, string | null>();
+  /** The node being drawn (for variable modes in effect there). */
+  current: SceneNode | undefined;
 
   constructor(
     readonly doc: FigDocument,
@@ -136,12 +139,27 @@ class SvgBuilder {
     return uri;
   }
 
+  /**
+   * A paint's bound colour variable, resolved in the mode in effect at the node being drawn. Figma
+   * draws bound colours this way; the paint's inline colour is often the default mode's value
+   * (verified against Figma's exports, docs/fig-format.md §5b). Falls back to the inline colour.
+   */
+  boundColor(p: any): any {
+    const alias = p.colorVar?.value?.alias;
+    if (!alias || !this.current) return undefined;
+    const v = this.doc.resolveVariableRef(alias);
+    const val = v ? resolveVariableAt(this.doc, this.current, v) : undefined;
+    return val && typeof val === 'object' && 'r' in val ? val : undefined;
+  }
+
   /** SVG fill value for a paint, defining gradients/patterns as needed. */
   paintFill(p: any, w: number, h: number): { fill: string; opacity: number } | undefined {
     const opacity = p.opacity ?? 1;
     switch (p.type) {
-      case 'SOLID':
-        return { fill: rgb(p.color), opacity: (p.color?.a ?? 1) * opacity };
+      case 'SOLID': {
+        const c = this.boundColor(p) ?? p.color;
+        return { fill: rgb(c), opacity: (c?.a ?? 1) * opacity };
+      }
       case 'GRADIENT_LINEAR':
       case 'GRADIENT_RADIAL':
       case 'GRADIENT_ANGULAR':
@@ -488,6 +506,16 @@ function ownPaint(b: SvgBuilder, n: NodeChange): string {
 }
 
 function renderNode(b: SvgBuilder, node: SceneNode, transform: Matrix): string {
+  const prev = b.current;
+  b.current = node;
+  try {
+    return renderNodeInner(b, node, transform);
+  } finally {
+    b.current = prev;
+  }
+}
+
+function renderNodeInner(b: SvgBuilder, node: SceneNode, transform: Matrix): string {
   const n = node.data;
   if (!node.visible) return '';
   if ((n.opacity ?? 1) <= 0) return '';

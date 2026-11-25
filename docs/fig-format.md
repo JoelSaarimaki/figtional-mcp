@@ -207,7 +207,8 @@ Variable names use `/` for groups (Figma convention).
 - Paint colour: `paint.colorVar.value.alias` (see §4.12).
 - Other fields: `node.variableConsumptionMap.entries[]: { variableData: { value: { alias }, dataType: "ALIAS", resolvedDataType: "FLOAT" }, variableField: "STACK_PADDING_LEFT" | "STACK_PADDING_TOP" | … }` (1,144 nodes).
 - Component property bindings use `parameterConsumptionMap` with `propRefValue: { defId }` and `variableField: "VISIBLE"` etc. (2,447 nodes).
-- **Explicit modes**: `variableModeBySetMap` on frames (47 nodes) picks a mode per collection for a subtree. The nearest ancestor wins; otherwise the collection's first mode.
+- **Explicit modes**: `variableModeBySetMap: { entries: [{ variableSetID, variableModeID }] }` on frames (47 nodes) picks a mode per collection for a subtree. The nearest ancestor wins; otherwise the collection's first mode. `variableSetID` is a `VariableSetID { guid | assetRef }` (schema); all 67 entries in Futurice use `assetRef` (library collections). Figtional writes `{ guid }` for local collections, like local variable aliases (*assumed* until an import check), and `{ assetRef: { key, version } }` for embedded library collections.
+- **Inline colours don't follow explicit modes (verified, Futurice):** under explicit modes, a bound paint's inline `color` equals the effective mode's value in only 155 cases, the default mode's value in 1,632 and neither in 1,895. Figma resolves bound variables when drawing (see §5b), so Figtional doesn't rewrite inline colours when it sets a mode.
 - Library variables point to their collection with `variableSetID: { assetRef: { key, version } }` instead of `{ guid }`.
 - Collections in Futurice.com UI: Colors [Light, Dark], Brand Colors, Primitive Colors, Semantic Colors [Light, Dark], Responsive [Desktop, Tablet, Phone], Responsive [Desktop, Mobile].
 
@@ -286,6 +287,7 @@ Plugin API mapping for both generations: `node.reactions[]` (`trigger.type`, `ac
 ## 5b. Rendering notes (verified by render-diffing against Figma's PNG exports)
 
 `packages/fig-render` turns nodes into SVG (and PNG via resvg). What made it match Figma:
+- **Bound colours are resolved in the effective mode.** A solid paint with `colorVar` is drawn with the variable's value in the mode in effect at the node (nearest `variableModeBySetMap`, per collection, following aliases), not the inline `color`. Verified: Futurice "Home - Landing Page light" went from 2.17% to 2.02% differing pixels, the other 22 exports were unchanged (0.1.5).
 - **Use Figma's stored geometry.** `fillGeometry` gives the exact shape outlines (corner radii, smoothing, booleans, vectors), so the renderer doesn't reimplement shapes. Only nodes without geometry fall back to rect/ellipse paths.
 - **`strokeGeometry` is the stroke outline, but for INSIDE and OUTSIDE strokes it is a *centred* outline twice the stroke weight** (it extends ±weight around the edge). Clip it to the shape for INSIDE, and mask it to outside the shape for OUTSIDE. CENTER strokes are used as stored. Not clipping made every inside border twice as thick.
 - **Glyph outlines are in em units with y pointing up.** Draw each at `translate(position) scale(fontSize, -fontSize)`. Per-character styles come from `textData.characterStyleIDs[firstCharacter]` → `styleOverrideTable[styleID].fillPaints`. Underlines and strikethroughs are precomputed rectangles in `derivedTextData.decorations`.

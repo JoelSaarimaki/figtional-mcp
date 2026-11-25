@@ -227,6 +227,52 @@ describe('use_figma edits', () => {
     expect(doc.internalPage).toBeDefined();
   });
 
+  it('sets explicit variable modes on frames, and draws bound colours in that mode', async () => {
+    const r = await run(`
+      const c = figma.variables.createVariableCollection('Theme');
+      c.renameMode(c.defaultModeId, 'Light');
+      const dark = c.addMode('Dark');
+      const bg = figma.variables.createVariable('bg', c, 'COLOR');
+      bg.setValueForMode(c.defaultModeId, { r: 1, g: 1, b: 1 });
+      bg.setValueForMode(dark, { r: 0, g: 0, b: 0 });
+      const frame = figma.createFrame();
+      frame.resize(40, 40);
+      const box = figma.createRectangle();
+      box.resize(20, 20);
+      box.fills = [figma.variables.setBoundVariableForPaint({ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }, 'color', bg)];
+      frame.appendChild(box);
+      frame.setExplicitVariableModeForCollection(c, dark);
+      const explicit = frame.explicitVariableModes;
+      const resolvedBox = box.resolvedVariableModes[c.id];
+      const other = figma.createFrame();
+      other.setExplicitVariableModeForCollection(c.id, dark);
+      other.clearExplicitVariableModeForCollection(c);
+      let bad = null;
+      try { frame.setExplicitVariableModeForCollection(c, 'nope'); } catch (e) { bad = e.message; }
+      let onRect = null;
+      try { box.setExplicitVariableModeForCollection(c, dark); } catch (e) { onRect = e.constructor.name; }
+      return { cid: c.id, dark, explicit, resolvedBox, cleared: other.explicitVariableModes, bad, onRect, frame: frame.id, box: box.id };
+    `);
+    expect(r.ok, r.text).toBe(true);
+    const out = JSON.parse(r.text);
+    expect(out.explicit).toEqual({ [out.cid]: out.dark });
+    expect(out.resolvedBox).toBe(out.dark);
+    expect(out.cleared).toEqual({});
+    expect(out.bad).toMatch(/^Mode nope not found/);
+    expect(out.onRect).toBe('TypeError');
+    // Saved like Figma: a local collection is referenced by guid.
+    const doc = reload();
+    const frame = doc.getNodeById(out.frame)!;
+    const [entry] = frame.data.variableModeBySetMap.entries;
+    expect(`VariableCollectionId:${guidToString(entry.variableSetID.guid)}`).toBe(out.cid);
+    expect(guidToString(entry.variableModeID)).toBe(out.dark);
+    // The inline colour stays the default mode's (as Figma leaves it); drawing uses the Dark value.
+    const box = doc.getNodeById(out.box)!;
+    expect(box.data.fillPaints[0].color.r).toBe(1);
+    const { renderSvg } = await import('@figtional/fig-render');
+    expect(renderSvg(doc, frame).svg).toContain('#000000');
+  });
+
   it('accumulates edits in --out copies and keeps the original untouched', async () => {
     const before = readFileSync(file);
     const out = join(dir, 'out');

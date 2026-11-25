@@ -6,6 +6,14 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 
 ## [Unreleased]
 
+### Added
+
+- `use_figma`: explicit variable modes (`setExplicitVariableModeForCollection`, `clearExplicitVariableModeForCollection`, `explicitVariableModes`, `resolvedVariableModes`) on frames, components, component sets, instances and sections, e.g. for light and dark themes.
+
+### Changed
+
+- Rendering (viewer and screenshots) draws colours bound to variables in the mode in effect at each layer, as Figma does, instead of the colour stored with the layer. Frames with an explicit mode (e.g. Dark) now look right, and Futurice's landing page matches Figma's export more closely.
+
 ## [0.1.4]
 
 ### Added
