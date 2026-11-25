@@ -321,7 +321,9 @@ class Builder {
           `${e.type === 'INNER_SHADOW' ? 'inset ' : ''}${px(e.offset?.x ?? 0)} ${px(e.offset?.y ?? 0)} ${px(e.radius ?? 0)} ${px(e.spread ?? 0)} ${colorToHex(e.color).toLowerCase()}`,
       );
     if (shadows.length) css.push(['box-shadow', shadows.join(', ')]);
-    const blur = (d.effects ?? []).find((e: any) => e.visible !== false && e.type === 'LAYER_BLUR');
+    const blur = (d.effects ?? []).find(
+      (e: any) => e.visible !== false && (e.type === 'FOREGROUND_BLUR' || e.type === 'LAYER_BLUR'),
+    );
     if (blur) css.push(['filter', `blur(${px((blur.radius ?? 0) / 2)})`]);
     const bgBlur = (d.effects ?? []).find((e: any) => e.visible !== false && e.type === 'BACKGROUND_BLUR');
     if (bgBlur) css.push(['backdrop-filter', `blur(${px((bgBlur.radius ?? 0) / 2)})`]);

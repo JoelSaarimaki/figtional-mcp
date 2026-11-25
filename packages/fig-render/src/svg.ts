@@ -362,7 +362,7 @@ function filterFor(b: SvgBuilder, n: NodeChange): string | undefined {
           `<feComposite in2="${r}c" operator="in" result="${r}"/>`,
       );
       merge.push('__SRC__', r);
-    } else if (e.type === 'LAYER_BLUR') {
+    } else if (e.type === 'FOREGROUND_BLUR' || e.type === 'LAYER_BLUR') {
       parts.push(`<feGaussianBlur in="SourceGraphic" stdDeviation="${sd}" result="lb${i}"/>`);
       merge.push(`lb${i++}`);
     } else {

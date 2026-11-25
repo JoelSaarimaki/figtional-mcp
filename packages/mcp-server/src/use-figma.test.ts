@@ -273,6 +273,37 @@ describe('use_figma edits', () => {
     expect(renderSvg(doc, frame).svg).toContain('#000000');
   });
 
+  it('saves a single min/max dimension the way Figma stores it (unset min 0, unset max Infinity)', async () => {
+    const r = await run(`
+      const f = figma.createFrame();
+      f.layoutMode = 'VERTICAL';
+      f.minWidth = 120;
+      f.maxHeight = 300;
+      const before = [f.minWidth, f.minHeight, f.maxWidth, f.maxHeight];
+      f.minWidth = null;
+      return { id: f.id, before, after: [f.minWidth, f.maxHeight] };
+    `);
+    expect(r.ok, r.text).toBe(true);
+    const o = JSON.parse(r.text);
+    expect(o.before).toEqual([120, null, null, 300]);
+    expect(o.after).toEqual([null, 300]);
+    const f = reload().getNodeById(o.id)!;
+    expect(f.data.minSize).toBeUndefined();
+    expect(f.data.maxSize.value).toEqual({ x: Infinity, y: 300 });
+  });
+
+  it('writes layer blurs as FOREGROUND_BLUR, the name in the file schema', async () => {
+    const r = await run(`
+      const f = figma.createRectangle();
+      f.effects = [{ type: 'LAYER_BLUR', radius: 4, visible: true }];
+      return { id: f.id, type: f.effects[0].type };
+    `);
+    expect(r.ok, r.text).toBe(true);
+    const o = JSON.parse(r.text);
+    expect(o.type).toBe('LAYER_BLUR');
+    expect(reload().getNodeById(o.id)!.data.effects[0].type).toBe('FOREGROUND_BLUR');
+  });
+
   it('accumulates edits in --out copies and keeps the original untouched', async () => {
     const before = readFileSync(file);
     const out = join(dir, 'out');

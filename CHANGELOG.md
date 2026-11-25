@@ -6,6 +6,11 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 
 ## [Unreleased]
 
+### Fixed
+
+- `use_figma`: setting only one of `minWidth`/`minHeight` (or `maxWidth`/`maxHeight`) made the save fail ("missing required field Vector.y"). Unset dimensions are now stored as Figma does (0 for a minimum, Infinity for a maximum).
+- `use_figma`: `LAYER_BLUR` effects made the save fail; the file format calls them `FOREGROUND_BLUR`. Screenshots, the viewer and `get_design_context` now also show layer blurs from Figma's own files, which they ignored before.
+
 ### Changed
 
 - Docs brought up to date with 0.2.0: README's editing features and limitations, the tool reference's implementation state, PLAN's status (M9 done: releases, multi-OS tests, Futurice.com UI loads in about 1.2 s).

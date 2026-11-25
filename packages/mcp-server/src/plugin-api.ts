@@ -201,8 +201,16 @@ function paintFromPlugin(doc: FigDocument, p: any, path: string): any {
   return out;
 }
 
+/** The file stores the Plugin API's LAYER_BLUR as FOREGROUND_BLUR (EffectType in the schema). */
+const EFFECT_TYPE_TO_FILE: Record<string, string> = { LAYER_BLUR: 'FOREGROUND_BLUR' };
+const EFFECT_TYPE_TO_PLUGIN: Record<string, string> = { FOREGROUND_BLUR: 'LAYER_BLUR' };
+
 function effectToPlugin(e: any): any {
-  const out: any = { type: e.type, visible: e.visible !== false, radius: e.radius ?? 0 };
+  const out: any = {
+    type: EFFECT_TYPE_TO_PLUGIN[e.type] ?? e.type,
+    visible: e.visible !== false,
+    radius: e.radius ?? 0,
+  };
   if (e.type === 'DROP_SHADOW' || e.type === 'INNER_SHADOW') {
     out.color = { ...(e.color ?? { r: 0, g: 0, b: 0, a: 0.25 }) };
     out.offset = { ...(e.offset ?? { x: 0, y: 0 }) };
@@ -216,7 +224,11 @@ function effectToPlugin(e: any): any {
 function effectFromPlugin(e: any, path: string): any {
   if (!['DROP_SHADOW', 'INNER_SHADOW', 'LAYER_BLUR', 'BACKGROUND_BLUR'].includes(e?.type))
     throw new Error(`Invalid effect type at ${path}`);
-  const out: any = { type: e.type, visible: e.visible !== false, radius: e.radius ?? 0 };
+  const out: any = {
+    type: EFFECT_TYPE_TO_FILE[e.type] ?? e.type,
+    visible: e.visible !== false,
+    radius: e.radius ?? 0,
+  };
   if (e.type.endsWith('SHADOW')) {
     out.color = { r: e.color?.r ?? 0, g: e.color?.g ?? 0, b: e.color?.b ?? 0, a: e.color?.a ?? 1 };
     out.offset = { x: e.offset?.x ?? 0, y: e.offset?.y ?? 0 };
@@ -1113,13 +1125,23 @@ export function createFigmaApi(ctx: ApiContext) {
     set layoutSizingVertical(v: string) {
       this.setSizing(false, v);
     }
+    // Figma stores both axes in one vector; an unset minimum is 0 and an unset maximum Infinity
+    // (verified in all references), so a single set dimension still encodes.
     private minMax(field: 'minSize' | 'maxSize', axis: 'x' | 'y') {
-      return this._d[field]?.value?.[axis] ?? null;
+      const v = this._d[field]?.value?.[axis];
+      const unset = field === 'minSize' ? 0 : Infinity;
+      return v === undefined || v === null || v === unset ? null : v;
     }
     private setMinMax(field: 'minSize' | 'maxSize', axis: 'x' | 'y', v: number | null) {
-      const cur = { x: this._d[field]?.value?.x ?? null, y: this._d[field]?.value?.y ?? null };
-      cur[axis] = v;
-      editRaw(this.id, { [field]: { value: cur } });
+      const unset = field === 'minSize' ? 0 : Infinity;
+      const cur = { x: this._d[field]?.value?.x ?? unset, y: this._d[field]?.value?.y ?? unset };
+      cur[axis] = v === null || v === undefined ? unset : Number(v);
+      if (cur.x === unset && cur.y === unset) {
+        if (scene(this.id).isInstanceSublayer)
+          throw new FigtionalUnsupported(`clearing ${field} inside an instance`);
+        delete session.raw(this.id)[field];
+        session.markDirty(this.id);
+      } else editRaw(this.id, { [field]: { value: cur } });
     }
     get minWidth() {
       return this.minMax('minSize', 'x');
