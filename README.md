@@ -12,7 +12,7 @@ It also includes a read-only **web viewer** that shows `.fig` files the way Figm
 
 ![The Figtional viewer showing the "Responsive example" file: layer tree on the left, four mobile and tablet screens on the canvas with one card selected, and the inspect panel with its auto layout, fill and prototype settings on the right](docs/images/viewer.png)
 
-> **Status:** version 0.2.1, early development, usable for testing. See [CHANGELOG.md](CHANGELOG.md) for what's in each version. All of Figma MCP's read tools work, the viewer works, and `use_figma` supports a growing subset of the Plugin API for editing (see [Limitations](#limitations)). The roadmap is in [PLAN.md](PLAN.md).
+> **Status:** version 0.3.0, early development, usable for testing. See [CHANGELOG.md](CHANGELOG.md) for what's in each version. All of Figma MCP's read tools work, the viewer works, and `use_figma` supports a growing subset of the Plugin API for editing (see [Limitations](#limitations)). The roadmap is in [PLAN.md](PLAN.md).
 
 ## Contents
 
@@ -104,7 +104,7 @@ Figtional is an MCP server that talks over **stdio**: the AI client starts it as
 
 `figtional setup --print <folder>` prints the exact command and JSON for your computer without changing anything. The examples below use these placeholders; replace them with your own paths:
 
-- `/path/to/figtional-mcp/packages/cli/dist/bin.js` is the script (see above), e.g. `C:/Users/me/Documents/figtional-0.2.1/lib/figtional.mjs`.
+- `/path/to/figtional-mcp/packages/cli/dist/bin.js` is the script (see above), e.g. `C:/Users/me/Documents/figtional-0.3.0/lib/figtional.mjs`.
 - `/path/to/designs` is the folder with your `.fig` files.
 
 > **Keep the real Figma MCP server switched off** while you practise with Figtional, so the agent can't reach your Figma account through it. Both servers use the same tool names, so with both connected the agent could pick either.

@@ -6,6 +6,8 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 
 ## [Unreleased]
 
+## [0.3.0]
+
 ### Added
 
 - `use_figma`: `figma.group()` and `figma.ungroup()`. Layers keep their place on the canvas, and groups stay fitted to their children when those move or resize, as in Figma.
@@ -120,7 +122,8 @@ First release.
 - **Web viewer** (`figtional serve`): page selector, layer tree, pan/zoom canvas, inspect panel, file info, prototype arrows and a basic Present mode. It reloads on file changes and only listens on `127.0.0.1`.
 - **CLI:** `mcp`, `serve`, `dump`, `inspect`, `validate` and per-command help.
 
-[Unreleased]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.2.1...development
+[Unreleased]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.3.0...development
+[0.3.0]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.4...v0.2.0
 [0.1.4]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.3...v0.1.4

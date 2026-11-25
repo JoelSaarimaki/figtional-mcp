@@ -1,6 +1,6 @@
 {
   "name": "figtional-monorepo",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "description": "Figtional MCP: a local, file-scoped stand-in for the Figma MCP server, backed by .fig exports.",
   "license": "MIT",
