@@ -7,10 +7,10 @@
  *   npm run release -- major   # only when explicitly decided: 0.4.2 → 1.0.0
  *
  * It sets the same version in the root and every package, moves the CHANGELOG's [Unreleased]
- * entries under the new version, refreshes package-lock.json, and prints the remaining steps.
+ * entries under the new version, updates package-lock.json, and prints the remaining steps.
  * It does not commit, tag, merge or push.
  */
-import { execFileSync, execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -83,8 +83,14 @@ updated = updated.replace(
 );
 writeFileSync(changelogPath, updated);
 
-// 3. Lockfile (a fixed command line, so running it through the shell is safe on every OS).
-execSync('npm install --package-lock-only --ignore-scripts --silent', { cwd: root, stdio: 'inherit' });
+// 3. Lockfile: the workspace version fields, updated directly (no npm run needed).
+const lockPath = join(root, 'package-lock.json');
+const lock = readJson(lockPath);
+lock.version = next;
+for (const [path, entry] of Object.entries(lock.packages ?? {})) {
+  if (path === '' || /^packages\/[^/]+$/.test(path)) entry.version = next;
+}
+writeJson(lockPath, lock);
 
 console.log(`
 Version ${next} prepared on "development" (${level}).

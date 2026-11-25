@@ -275,7 +275,18 @@ figtional help <command>          # help for one command (or: figtional <command
 - **Rendering.** Screenshots and the viewer are visually faithful but not pixel-identical to Figma. Background blur isn't drawn, and angular/diamond gradients are approximated.
 - **Fonts.** Text that hasn't been edited is drawn exactly as Figma laid it out. Edited or new text uses **fonts installed on your machine**. If a font is missing, Figtional falls back to a basic font for display, but the file keeps the original font, so Figma shows it correctly after import.
 - **Present mode is basic.** It follows clicks, overlays and back/close, but lacks Smart Animate, most transitions, other triggers and Figma's hotspot hints.
-- **Not in `.fig` files.** No Code Connect, comments, version history or multiplayer. Those live in Figma's cloud.
+- **What a `.fig` export leaves out.** "Save local copy" saves the file's design content, not its life in Figma's cloud. Not in the export, so Figtional can't show or edit them:
+  - comments and their threads,
+  - version history, and branches other than the one you exported,
+  - sharing, permissions, the team or project the file belongs to, and its URL,
+  - live library connections. Components, styles and variables used from shared libraries are embedded as copies, so they display normally, but library updates don't flow into the `.fig`,
+  - Code Connect mappings and other Dev Mode integrations,
+  - fonts. Font names are kept, but font files aren't included; text shows correctly where the fonts are installed,
+  - multiplayer state such as cursors and selections.
+
+  Kept: pages and layers, components and variants, styles, variables and modes, images, prototype flows, annotations, Dev Mode ready-for-dev statuses, plugin data and export settings.
+
+  Importing an edited `.fig` back into Figma creates a **new** file. Comments, history and links of the original stay with the original, and library instances only reconnect if you have access to those libraries.
 
 ## How it works
 
