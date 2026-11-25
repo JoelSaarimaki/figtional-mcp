@@ -21,7 +21,7 @@ Packages live in `packages/`: `fig-format` (reading and writing `.fig` files), `
 | Branch | Purpose |
 |---|---|
 | `main` | Released code only. Every commit on `main` is a release and carries a version tag (`v0.1.0`, `v0.1.1`, …). Never commit to it directly. |
-| `development` | The integration branch: all work lands here first. This is the default branch for pull requests. |
+| `development` | The integration branch: all work lands here first. Pull requests should target `development` (GitHub suggests `main`, the repository's default branch, so change the base branch when you open one). |
 | `feature/<short-name>`, `fix/<short-name>` | Optional short-lived branches for larger changes; open a pull request into `development`. |
 
 Small changes can go straight to `development`. Before merging into `development`, run `npm run lint` and `npm test` and add a line to the `[Unreleased]` section of [CHANGELOG.md](CHANGELOG.md).
