@@ -6,6 +6,8 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 
 ## [Unreleased]
 
+## [0.2.0]
+
 ### Added
 
 - `use_figma`: `figma.createNodeFromSvg()` for icons and simple drawings (paths and basic shapes with solid fills and strokes; SVG features Figtional can't reproduce faithfully, such as text, images and gradients, are refused with a Figtional limitation), and `figma.createVector()` with `vectorPaths`, `vectorNetwork` and `setVectorNetworkAsync`. The viewer and screenshots draw these vectors.
@@ -81,7 +83,8 @@ First release.
 - **Web viewer** (`figtional serve`): page selector, layer tree, pan/zoom canvas, inspect panel, file info, prototype arrows and a basic Present mode. It reloads on file changes and only listens on `127.0.0.1`.
 - **CLI:** `mcp`, `serve`, `dump`, `inspect`, `validate` and per-command help.
 
-[Unreleased]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.4...development
+[Unreleased]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.2.0...development
+[0.2.0]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.4...v0.2.0
 [0.1.4]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.1...v0.1.2
