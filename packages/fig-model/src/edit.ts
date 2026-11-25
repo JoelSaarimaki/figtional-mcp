@@ -13,9 +13,11 @@ import {
   type FigDocument,
   type SceneNode,
   INTERNAL_PAGE_NAME,
+  isGroupData,
   isInternalPage,
   overrideId,
 } from './document.js';
+import { IDENTITY, multiply, transformedBounds } from './matrix.js';
 import { keyBetween, spreadKeys } from './fractional-index.js';
 import { applyTextCase, measureText } from './fonts.js';
 import { computeLayout, stackProps } from './layout.js';
@@ -266,7 +268,9 @@ export class EditSession {
         if (n?.type === 'TEXT' && n.textAutoResize === 'HEIGHT') this.measure(n);
       }
     }
-    // 3. Component sets fit their variants (when they have no auto layout of their own).
+    // 3. Groups fit their children (innermost first), keeping the children where they are.
+    this.fitGroups();
+    // 4. Component sets fit their variants (when they have no auto layout of their own).
     const sets = new Set<NodeChange>();
     for (const id of this.dirty) {
       for (
@@ -291,6 +295,60 @@ export class EditSession {
     this.doc.reindex();
     this.dirty.clear();
     this.dirtyText.clear();
+  }
+
+  /**
+   * Resizes and moves every group above a dirty node to the bounds of its visible children, as
+   * Figma does: the group's transform moves to the new corner and the children shift back, so
+   * nothing moves on the canvas. Deeper groups go first, as their size feeds their parents.
+   */
+  private fitGroups(): void {
+    const groups = new Map<string, { n: NodeChange; depth: number }>();
+    for (const id of this.dirty) {
+      let depth = 0;
+      for (
+        let n = this.doc.nodes.get(id);
+        n;
+        n = n.parentIndex ? this.doc.nodes.get(guidToString(n.parentIndex.guid)) : undefined, depth++
+      ) {
+        if (isGroupData(n)) {
+          const key = guidToString(n.guid);
+          const prev = groups.get(key);
+          if (!prev || prev.depth < depth) groups.set(key, { n, depth });
+        }
+        if (!n.parentIndex) break;
+      }
+    }
+    // A larger depth from a dirty node means a higher group, so fit the smallest depths first.
+    for (const { n: g } of [...groups.values()].sort((a, b) => a.depth - b.depth)) {
+      const kids = this.doc.rawChildren(guidToString(g.guid)).filter((c) => c.visible !== false);
+      if (!kids.length) continue;
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const c of kids) {
+        const b = transformedBounds(c.transform ?? IDENTITY, c.size?.x ?? 0, c.size?.y ?? 0);
+        minX = Math.min(minX, b.x);
+        minY = Math.min(minY, b.y);
+        maxX = Math.max(maxX, b.x + b.width);
+        maxY = Math.max(maxY, b.y + b.height);
+      }
+      const w = maxX - minX;
+      const h = maxY - minY;
+      const moved = Math.abs(minX) > 1e-6 || Math.abs(minY) > 1e-6;
+      const resized = Math.abs(w - (g.size?.x ?? 0)) > 1e-6 || Math.abs(h - (g.size?.y ?? 0)) > 1e-6;
+      if (!moved && !resized) continue;
+      if (moved) {
+        for (const c of kids) {
+          const t = c.transform ?? { ...IDENTITY };
+          c.transform = { ...t, m02: t.m02 - minX, m12: t.m12 - minY };
+        }
+        g.transform = multiply(g.transform ?? IDENTITY, { ...IDENTITY, m02: minX, m12: minY });
+      }
+      g.size = { x: w, y: h };
+      this.invalidateGeometry(g);
+    }
   }
 
   /** True if `s` sits inside an instance that was edited in this session. */

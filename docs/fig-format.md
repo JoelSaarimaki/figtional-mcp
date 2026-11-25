@@ -104,6 +104,7 @@ Sizes: Playground 33 nodes / 151 blobs; TTRPG stuff 4,378 / 1,043; Futurice.com 
 `DOCUMENT, CANVAS, FRAME, TEXT, ROUNDED_RECTANGLE, ELLIPSE, LINE, VECTOR, REGULAR_POLYGON, BOOLEAN_OPERATION, SECTION, SYMBOL, INSTANCE, BRUSH, VARIABLE_SET, VARIABLE`
 
 - **Groups** are `FRAME`s with `resizeToFit: true` (every "Group N" layer has it). Some resize-to-fit frames have fills, which groups can't, so `fig-model` treats a node as a group only when it also has no fills, strokes or auto layout (*assumed*). Groups have `frameMaskDisabled: false` yet don't clip in Figma (*assumed*).
+- **Group fields** (all 18 groups in TTRPG): `FRAME` with `resizeToFit: true`, `frameMaskDisabled: false`, `strokeWeight` 1, `strokeAlign` INSIDE, `strokeJoin` MITER and no fill field; size and position are the bounds of the children. **Figtional writes** groups this way and refits them (moving the group and shifting its children back) whenever a child changes, at the end of each `use_figma` call.
 - `BRUSH` = brush/pencil strokes (`brushType`, `scatterStrokeSettings`).
 
 **Plugin API ↔ .fig names:**

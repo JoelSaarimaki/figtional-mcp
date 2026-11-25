@@ -6,6 +6,10 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 
 ## [Unreleased]
 
+### Added
+
+- `use_figma`: `figma.group()` and `figma.ungroup()`. Layers keep their place on the canvas, and groups stay fitted to their children when those move or resize, as in Figma.
+
 ## [0.2.1]
 
 ### Changed

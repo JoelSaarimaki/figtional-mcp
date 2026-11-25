@@ -29,6 +29,10 @@ import {
   transformSubpaths,
   textDataOf,
   INSTANCE_FIELDS,
+  invert,
+  multiply,
+  transformedBounds,
+  isGroupData,
 } from '@figtional/fig-model';
 import { fontFallbacksIn, renderPng } from '@figtional/fig-render';
 
@@ -746,8 +750,12 @@ export function createFigmaApi(ctx: ApiContext) {
         LINE: 'Line',
         SYMBOL: 'Component',
         SECTION: 'Section',
+        GROUP: 'Group',
       }[type] ?? type;
-    const existing = [...doc.nodes.values()].filter((n) => n.type === type).length;
+    const existing =
+      type === 'GROUP'
+        ? [...doc.nodes.values()].filter((n) => isGroupData(n)).length
+        : [...doc.nodes.values()].filter((n) => n.type === type).length;
     const i = (counters.get(type) ?? existing) + 1;
     counters.set(type, i);
     return `${base} ${i}`;
@@ -949,8 +957,77 @@ export function createFigmaApi(ctx: ApiContext) {
       );
       return wrap(scene(guidToString(set.guid)));
     },
-    group() {
-      throw new FigtionalUnsupported('figma.group', 'Use a frame (createFrame / createAutoLayout) instead.');
+    group(nodes: any[], parent: any, index?: number) {
+      if (!Array.isArray(nodes) || !nodes.length)
+        throw new Error('First argument to group() must be an array of at least one node');
+      const parentId: string = parent?.id ?? pageId();
+      const p = scene(parentId);
+      const items = nodes.map((n) => {
+        if (!n?.id || !doc.getNodeById(n.id)) throw new Error('Expected a node');
+        const s = scene(n.id);
+        if (s.isInstanceSublayer) throw new Error('Cannot group a layer inside an instance');
+        if (s.figType === 'CANVAS' || s.figType === 'DOCUMENT') throw new Error('Cannot group a page');
+        return s;
+      });
+      // Keep the layers' stacking order when they share a parent.
+      items.sort((a, b) =>
+        a.parent === b.parent
+          ? (a.data.parentIndex?.position ?? '') < (b.data.parentIndex?.position ?? '')
+            ? -1
+            : 1
+          : 0,
+      );
+      // Each layer's transform in the new parent's space, and the bounds of them all.
+      const toParent = invert(p.figType === 'CANVAS' ? IDENTITY_T : p.absoluteTransform);
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      const rel = items.map((s) => {
+        const m = multiply(toParent, s.absoluteTransform);
+        const b = transformedBounds(m, s.width, s.height);
+        minX = Math.min(minX, b.x);
+        minY = Math.min(minY, b.y);
+        maxX = Math.max(maxX, b.x + b.width);
+        maxY = Math.max(maxY, b.y + b.height);
+        return m;
+      });
+      const g = session.create('FRAME', parentId, index, {
+        name: defaultName('GROUP'),
+        visible: true,
+        opacity: 1,
+        size: { x: maxX - minX, y: maxY - minY },
+        transform: { ...IDENTITY_T, m02: minX, m12: minY },
+        strokeWeight: 1,
+        strokeAlign: 'INSIDE',
+        strokeJoin: 'MITER',
+        frameMaskDisabled: false,
+        resizeToFit: true,
+      });
+      const gid = guidToString(g.guid);
+      items.forEach((s, i) => {
+        session.move(s.id, gid);
+        const m = rel[i]!;
+        session.raw(s.id).transform = { ...m, m02: m.m02 - minX, m12: m.m12 - minY };
+        session.markDirty(s.id);
+      });
+      return wrap(scene(gid));
+    },
+    ungroup(node: any) {
+      const s = node?.id ? scene(node.id) : undefined;
+      if (!s || s.type !== 'GROUP') throw new Error('Expected a group node');
+      const parent = s.parent!;
+      const at = parent.children.findIndex((c) => c.id === s.id);
+      const groupT = s.relativeTransform;
+      const kids = [...s.children];
+      kids.forEach((c, i) => {
+        const t = multiply(groupT, c.relativeTransform);
+        session.move(c.id, parent.id, at + i);
+        session.raw(c.id).transform = t;
+        session.markDirty(c.id);
+      });
+      session.remove(s.id);
+      return kids.map((c) => wrap(scene(c.id)));
     },
     createVector() {
       return create('VECTOR', {

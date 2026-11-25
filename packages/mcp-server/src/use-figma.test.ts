@@ -378,6 +378,45 @@ describe('use_figma edits', () => {
     expect(JSON.parse(fresh.text)).toBe(false);
   });
 
+  it('groups and ungroups layers without moving them, and keeps groups fitted', async () => {
+    const r = await run(`
+      const holder = figma.createFrame(); holder.x = 100; holder.y = 100; holder.resize(300, 300);
+      const a = figma.createRectangle(); a.resize(20, 20); holder.appendChild(a); a.x = 10; a.y = 10;
+      const b = figma.createRectangle(); b.resize(10, 10); holder.appendChild(b); b.x = 50; b.y = 30;
+      const g = figma.group([b, a], holder);
+      const grouped = { type: g.type, name: g.name, box: [g.x, g.y, g.width, g.height],
+        kids: g.children.map(c => [c.id === a.id ? 'a' : 'b', c.x, c.y]),
+        abs: [a.absoluteTransform[0][2], a.absoluteTransform[1][2]] };
+      b.x = 140; // the group grows to the right
+      const grown = [g.x, g.width];
+      a.x = -10; // and moves left, keeping b where it is
+      const moved = [g.x, g.width, b.absoluteTransform[0][2]];
+      const kids = figma.ungroup(g);
+      return { grouped, grown, moved, after: kids.map(c => [c.x, c.y, c.parent.id === holder.id]), id: g.id, holder: holder.id };
+    `);
+    expect(r.ok, r.text).toBe(true);
+    const o = JSON.parse(r.text);
+    expect(o.grouped).toEqual({
+      type: 'GROUP',
+      name: 'Group 1',
+      box: [10, 10, 50, 30],
+      kids: [
+        ['a', 0, 0],
+        ['b', 40, 20],
+      ],
+      abs: [110, 110],
+    });
+    expect(o.grown).toEqual([10, 150]); // b spans 140–150 inside the group
+    expect(o.moved).toEqual([0, 160, 250]); // a at -10 moves the group left; b stays at 250
+    expect(o.after).toEqual([
+      [0, 10, true],
+      [150, 30, true],
+    ]);
+    const doc = reload();
+    expect(doc.getNodeById(o.id)).toBeUndefined();
+    expect(doc.getNodeById(o.holder)!.children).toHaveLength(2);
+  });
+
   it('accumulates edits in --out copies and keeps the original untouched', async () => {
     const before = readFileSync(file);
     const out = join(dir, 'out');
