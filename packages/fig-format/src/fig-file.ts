@@ -211,8 +211,9 @@ export interface SaveResult {
  * Writes a new archive to `targetPath` atomically: temp file in the same directory, then rename.
  * If `targetPath` exists and `backup` is true, the previous file is kept as `<targetPath>.bak`.
  *
- * `source` is closed before the rename (Windows can't replace a file with an open handle), so callers
- * must reopen it afterwards.
+ * `source` is closed before the rename, so callers must reopen it afterwards. On Windows the rename
+ * fails while another process is reading the file (for example the viewer, for a moment), so it is
+ * retried for up to about 2 seconds.
  */
 export function saveFigArchive(
   source: FigArchive,
@@ -242,6 +243,26 @@ export function saveFigArchive(
     backupPath = `${targetPath}.bak`;
     copyFileSync(targetPath, backupPath);
   }
-  renameSync(tmp, targetPath);
+  try {
+    renameWithRetry(tmp, targetPath);
+  } catch (e) {
+    rmSync(tmp, { force: true });
+    throw e;
+  }
   return backupPath ? { path: targetPath, backupPath } : { path: targetPath };
+}
+
+/** Windows refuses to replace a file another process has open; such handles are short-lived here. */
+function renameWithRetry(from: string, to: string): void {
+  const sleeper = new Int32Array(new SharedArrayBuffer(4));
+  for (let attempt = 0; ; attempt++) {
+    try {
+      renameSync(from, to);
+      return;
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (attempt >= 20 || !['EPERM', 'EACCES', 'EBUSY'].includes(code ?? '')) throw e;
+      Atomics.wait(sleeper, 0, 0, 100);
+    }
+  }
 }
