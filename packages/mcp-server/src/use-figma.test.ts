@@ -266,9 +266,9 @@ describe('use_figma edits', () => {
     const [entry] = frame.data.variableModeBySetMap.entries;
     expect(`VariableCollectionId:${guidToString(entry.variableSetID.guid)}`).toBe(out.cid);
     expect(guidToString(entry.variableModeID)).toBe(out.dark);
-    // The inline colour stays the default mode's (as Figma leaves it); drawing uses the Dark value.
+    // The stored (inline) colour follows the mode, and drawing uses the Dark value.
     const box = doc.getNodeById(out.box)!;
-    expect(box.data.fillPaints[0].color.r).toBe(1);
+    expect(box.data.fillPaints[0].color.r).toBe(0);
     const { renderSvg } = await import('@figtional/fig-render');
     expect(renderSvg(doc, frame).svg).toContain('#000000');
   });

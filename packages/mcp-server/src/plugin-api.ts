@@ -22,6 +22,7 @@ import {
   availableFonts,
   collectionInfo,
   effectiveMode,
+  resolveVariableAt,
   isInternalPage,
   normalizeNodeId,
   resolveVariable,
@@ -345,6 +346,30 @@ export function createFigmaApi(ctx: ApiContext) {
     return i === undefined || !doc.blobs[i]
       ? { vertices: [], segments: [], regions: [] }
       : decodeVectorNetwork(doc.blobs[i]!.bytes);
+  };
+
+  /**
+   * After a mode change, stores each bound paint's colour as resolved in the mode now in effect,
+   * so the inline colour (what a viewer without variable support shows) matches the variable.
+   */
+  const syncBoundColors = (rootId: string) => {
+    scene(rootId).walk((n) => {
+      if (n.isInstanceSublayer) return false;
+      let changed = false;
+      for (const field of ['fillPaints', 'strokePaints'] as const) {
+        for (const p of session.raw(n.id)[field] ?? []) {
+          const alias = p.colorVar?.value?.alias;
+          const v = alias ? doc.resolveVariableRef(alias) : undefined;
+          const val = v ? resolveVariableAt(doc, n, v) : undefined;
+          if (val && typeof val === 'object' && 'r' in val) {
+            p.color = { r: val.r, g: val.g, b: val.b, a: val.a ?? 1 };
+            changed = true;
+          }
+        }
+      }
+      if (changed) session.markDirty(n.id);
+      return true;
+    });
   };
 
   const imageApi = (hash: string) => ({
@@ -1766,6 +1791,7 @@ export function createFigmaApi(ctx: ApiContext) {
       const entries = this.modeEntriesWithout(c);
       entries.push({ variableSetID, variableModeID: { ...mode.id } });
       editRaw(this.id, { variableModeBySetMap: { entries } });
+      syncBoundColors(this.id);
     }
     clearExplicitVariableModeForCollection(collection: unknown) {
       this.requireModes('clearExplicitVariableModeForCollection');
@@ -1777,6 +1803,7 @@ export function createFigmaApi(ctx: ApiContext) {
         delete session.raw(this.id).variableModeBySetMap;
         session.markDirty(this.id);
       }
+      syncBoundColors(this.id);
     }
     private modeEntriesWithout(c: NodeChange): any[] {
       const id = guidToString(c.guid);
