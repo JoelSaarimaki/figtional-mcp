@@ -160,6 +160,36 @@ export function propertyDefinitions(owner: NodeChange): any[] {
   );
 }
 
+/**
+ * Instance values (`componentPropAssignments`) of a variant are keyed by that variant's own
+ * definition stub `{ id, parentPropDefId }`, never by the set's definition: verified on every such
+ * instance in the references (4,394 of them), and Figma ignores set-level keys on import. This
+ * re-keys values given by set definition, or by the stub of the variant the instance used before a
+ * variant switch, to the stubs of `variant`. Values of plain components are returned unchanged.
+ */
+export function keyAssignmentsToVariant(
+  assignments: any[],
+  previous: NodeChange,
+  variant: NodeChange,
+): any[] {
+  const stubOf = new Map<string, any>(); // set definition id → stub id of `variant`
+  for (const d of variant.componentPropDefs ?? [])
+    if (d.parentPropDefId) stubOf.set(guidToString(d.parentPropDefId), d.id);
+  if (!stubOf.size) return assignments;
+  const parentOf = new Map<string, string>(); // stub id (old or new variant) → set definition id
+  for (const c of [previous, variant])
+    for (const d of c.componentPropDefs ?? [])
+      if (d.parentPropDefId) parentOf.set(guidToString(d.id), guidToString(d.parentPropDefId));
+  const out = new Map<string, any>();
+  for (const a of assignments) {
+    const id = guidToString(a.defID);
+    const stub = stubOf.get(parentOf.get(id) ?? id);
+    const entry = stub ? { ...a, defID: { ...stub } } : a;
+    out.set(guidToString(entry.defID), entry); // later values win
+  }
+  return [...out.values()];
+}
+
 function nextSort(defs: any[]): string {
   const last = defs
     .map((d) => d.sortPosition as string | undefined)
@@ -571,6 +601,7 @@ export class ComponentOps {
       else assignments.push(entry);
     }
     const fields: Record<string, unknown> = { componentPropAssignments: assignments };
+    let finalMain: NodeChange = main.data;
     if (variantChanges.size) {
       if (!isComponentSet(owner)) throw new Error('This instance is not of a variant');
       const want = new Map(parseVariantName(main.name));
@@ -581,6 +612,7 @@ export class ComponentOps {
       });
       if (!target)
         throw new Error(`Unable to find a variant with those property values: ${variantName([...want])}`);
+      finalMain = target;
       if (inst.isInstanceSublayer) fields.overriddenSymbolID = { ...target.guid };
       else {
         const raw = this.session.raw(inst.id);
@@ -590,6 +622,7 @@ export class ComponentOps {
         copyInstanceFields(raw, target);
       }
     }
+    fields.componentPropAssignments = keyAssignmentsToVariant(assignments, main.data, finalMain);
     setOverride(fields);
   }
 

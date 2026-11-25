@@ -398,6 +398,7 @@ function textXml(b: SvgBuilder, n: NodeChange): string {
     .map((line, i) => `<tspan x="${fmt(x)}" y="${fmt(top + lineH * i + m.ascent)}">${esc(line.text)}</tspan>`)
     .join('');
   b.warnings.add('text without stored layout drawn with installed fonts');
+  if (m.substituted) b.warnings.add(fontWarning(`${family} ${style}`, m.fontFamily));
   const ls = n.letterSpacing?.value
     ? ` letter-spacing="${fmt(n.letterSpacing.units === 'PIXELS' ? n.letterSpacing.value : (size * n.letterSpacing.value) / 100)}"`
     : '';
@@ -628,4 +629,22 @@ export function renderSvg(doc: FigDocument, node: SceneNode, opts: RenderOptions
     `viewBox="${fmt(bounds.x)} ${fmt(bounds.y)} ${fmt(bounds.width)} ${fmt(bounds.height)}">` +
     `${b.defsXml()}${bg}${content}</svg>`;
   return { svg, bounds, warnings: [...b.warnings] };
+}
+
+/** Prefix of the render warning for text drawn with a replacement font (see fontWarning). */
+export const FONT_WARNING_PREFIX = 'font not installed: ';
+
+/** `font not installed: "Inter Regular" → Arial` (replacement family, or none installed). */
+export function fontWarning(font: string, replacement: string | undefined): string {
+  return `${FONT_WARNING_PREFIX}"${font}" → ${replacement ?? 'no installed font'}`;
+}
+
+/** The fonts in render warnings: [requested "Family Style", replacement family or undefined]. */
+export function fontFallbacksIn(warnings: Iterable<string>): Map<string, string | undefined> {
+  const out = new Map<string, string | undefined>();
+  for (const w of warnings) {
+    const m = /^font not installed: "(.+)" → (.+)$/.exec(w);
+    if (m) out.set(m[1]!, m[2] === 'no installed font' ? undefined : m[2]);
+  }
+  return out;
 }

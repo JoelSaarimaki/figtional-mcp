@@ -200,6 +200,8 @@ export interface TextMeasure {
   ascent: number;
   substituted: boolean;
   fontPath?: string;
+  /** Family of the installed face that was used (differs from the request when substituted). */
+  fontFamily?: string;
 }
 
 /**
@@ -267,7 +269,7 @@ export function measureText(text: string, s: TextStyleInput, maxWidth?: number):
     lineHeight,
     ascent: (lineHeight - natural * size) / 2 + ascentRatio * size,
     substituted: resolved?.substituted ?? true,
-    ...(resolved ? { fontPath: resolved.face.path } : {}),
+    ...(resolved ? { fontPath: resolved.face.path, fontFamily: resolved.face.family } : {}),
   };
 }
 

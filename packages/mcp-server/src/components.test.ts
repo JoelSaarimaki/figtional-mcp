@@ -163,6 +163,41 @@ describe('variants', () => {
     });
   });
 
+  it("keys an instance's values to its variant's definition stubs, as Figma does", async () => {
+    const r = await run(`${SET}
+      const keys = Object.keys(set.componentPropertyDefinitions);
+      const labelKey2 = keys.find(k => k.startsWith('Label#'));
+      const iconKey2 = keys.find(k => k.startsWith('Show icon#'));
+      const a = button.createInstance();
+      a.setProperties({ [labelKey2]: 'Buy now' });
+      const b = button.createInstance();
+      b.setProperties({ [labelKey2]: 'No icon', [iconKey2]: false });
+      b.setProperties({ Size: 'Large' });
+      return { a: a.id, b: b.id, labelKey2, iconKey2,
+        bProps: b.componentProperties, bText: b.findOne(n => n.type === 'TEXT').characters,
+        bIcon: b.findOne(n => n.name === 'Icon').visible };
+    `);
+    expect(r.ok, r.text).toBe(true);
+    const out = r.json();
+    expect(out.bProps[out.labelKey2].value).toBe('No icon');
+    expect(out.bProps[out.iconKey2].value).toBe(false);
+    expect(out.bText).toBe('No icon');
+    expect(out.bIcon).toBe(false);
+    const doc = reload();
+    for (const id of [out.a, out.b]) {
+      const inst = doc.getNodeById(id)!;
+      const variant = inst.mainComponent!.data;
+      const stubs = new Set(variant.componentPropDefs.map((d: any) => guidToString(d.id)));
+      const ids = inst.data.componentPropAssignments.map((x: any) => guidToString(x.defID));
+      expect(ids.length).toBeGreaterThan(0);
+      for (const d of ids) expect(stubs.has(d), `${d} is a stub of ${variant.name}`).toBe(true);
+    }
+    // After the switch to Large, b's two values point at Large's stubs (no leftovers from Small).
+    const b = doc.getNodeById(out.b)!;
+    expect(b.mainComponent!.name).toBe('Size=Large');
+    expect(b.data.componentPropAssignments).toHaveLength(2);
+  });
+
   it("mirrors Figma's rules for property definitions on variants", async () => {
     const r = await run(`${SET}
       let error = null;
@@ -201,6 +236,27 @@ describe('instance layout after property changes', () => {
     const text = inst.findOne((n) => n.figType === 'TEXT')!;
     expect(text.width).toBeGreaterThan(100); // measured, not the component's "Button" width
     expect(text.data.derivedTextData).toBeUndefined(); // stale glyphs dropped
+  });
+
+  it('measures text copied before the end of the call (clone of a fresh component)', async () => {
+    const r = await run(`${BUTTON}
+      const copy = button.clone(); copy.x = 300; copy.paddingLeft = 24; copy.paddingRight = 24;
+      const t1 = button.findOne(n => n.type === 'TEXT'), t2 = copy.findOne(n => n.type === 'TEXT');
+      return { t1: [t1.width, t1.height], t2: [t2.width, t2.height], w1: button.width, w2: copy.width, pad: button.paddingLeft + button.paddingRight };
+    `);
+    expect(r.ok, r.text).toBe(true);
+    const out = r.json();
+    expect(out.t1[0]).toBeGreaterThan(10);
+    expect(out.t2).toEqual(out.t1);
+    // Same content; only the horizontal padding changed (to 24 + 24).
+    expect(out.w2).toBeCloseTo(out.w1 - out.pad + 48, 3);
+    // And in the saved file.
+    const doc = reload();
+    const texts = [...doc.nodes.values()].filter(
+      (n) => n.type === 'TEXT' && n.textData?.characters === 'Button',
+    );
+    expect(texts.length).toBeGreaterThanOrEqual(2);
+    for (const t of texts) expect(t.size.x).toBeGreaterThan(10);
   });
 
   it('fits component sets to their variants and names instances after the set', async () => {

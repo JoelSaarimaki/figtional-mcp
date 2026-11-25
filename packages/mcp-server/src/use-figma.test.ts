@@ -24,6 +24,39 @@ const run = async (code: string, writable = true) => {
 };
 const reload = () => FigDocument.fromArchive(FigArchive.open(file));
 
+describe('font limitation notes', () => {
+  const MISSING = 'Figtional Missing Font';
+  it('notes text measured with a replacement font, and keeps the result as Figma returns it', async () => {
+    const r = await run(`
+      await figma.loadFontAsync({ family: '${MISSING}', style: 'Regular' });
+      const t = figma.createText();
+      t.fontName = { family: '${MISSING}', style: 'Regular' };
+      t.characters = 'Hello';
+      t.screenshot && await t.screenshot();
+      return t.id;
+    `);
+    expect(r.ok, r.text).toBe(true);
+    expect(JSON.parse(r.text)).toMatch(/^\d+:\d+$/);
+    const notes = r.notes ?? [];
+    const measured = notes.find((n) => n.includes('measured')) ?? '';
+    expect(measured.startsWith('Figtional limitation: this font is not installed')).toBe(true);
+    expect(measured).toContain(`"${MISSING} Regular" (measured with `);
+    expect(notes.find((n) => n.includes('drawn'))).toMatch(
+      /^Figtional limitation: .*in the screenshot is drawn/,
+    );
+    // The file keeps the requested font.
+    const t = reload().getNodeById(JSON.parse(r.text))!;
+    expect(t.data.textData.characters).toBe('Hello');
+    expect(t.data.fontName.family).toBe(MISSING);
+  });
+
+  it('adds no note when no text was measured', async () => {
+    const r = await run(`const f = figma.createFrame(); f.resize(10, 10); return f.id;`);
+    expect(r.ok, r.text).toBe(true);
+    expect(r.notes).toBeUndefined();
+  });
+});
+
 describe('use_figma runtime contract', () => {
   it('returns JSON of the return value and supports top-level await', async () => {
     const r = await run(

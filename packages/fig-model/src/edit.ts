@@ -27,6 +27,11 @@ export class EditSession {
   readonly dirty = new Set<string>();
   /** Text nodes whose text or typography changed (re-measured on commit). */
   readonly dirtyText = new Set<string>();
+  /**
+   * Fonts that text was measured with a replacement for, because they aren't installed:
+   * "Family Style" → the installed family used (undefined: no fonts installed at all).
+   */
+  readonly fontFallbacks = new Map<string, string | undefined>();
   changed = false;
 
   constructor(readonly doc: FigDocument) {
@@ -110,18 +115,24 @@ export class EditSession {
     const parent = parentId ?? guidToString(src.parentIndex!.guid);
     const siblings = this.doc.rawChildren(parent);
     const at = index ?? (parentId ? undefined : siblings.indexOf(src) + 1);
+    // Text edited earlier in the same call isn't measured until commit(); its copies must be too,
+    // or they keep the unmeasured size (e.g. 0×0 for new text) and auto layout around them is wrong.
+    const pendingText: string[] = [];
     const copy = (n: NodeChange, newParent: GUID, position: string): NodeChange => {
       const c = structuredClone(n);
       c.guid = this.newGuid();
       c.parentIndex = { guid: newParent, position };
       delete c.overrideKey;
       this.doc.message.nodeChanges.push(c);
+      if (n.type === 'TEXT' && this.dirtyText.has(guidToString(n.guid)))
+        pendingText.push(guidToString(c.guid));
       for (const child of this.doc.rawChildren(guidToString(n.guid)))
         copy(child, c.guid, child.parentIndex!.position);
       return c;
     };
     const root = copy(src, this.raw(parent).guid, this.positionAt(parent, at));
     this.touchStructure(parent);
+    for (const id of pendingText) this.markText(id);
     return root;
   }
 
@@ -340,14 +351,16 @@ export class EditSession {
     };
     const mode = n.textAutoResize ?? 'NONE';
     n.size ??= { x: 0, y: 0 };
+    let m: ReturnType<typeof measureText> | undefined;
     if (mode === 'WIDTH_AND_HEIGHT') {
-      const m = measureText(chars, style);
+      m = measureText(chars, style);
       n.size.x = Math.ceil(m.width);
       n.size.y = m.height;
     } else if (mode === 'HEIGHT') {
-      const m = measureText(chars, style, n.size.x);
+      m = measureText(chars, style, n.size.x);
       n.size.y = m.height;
     }
+    if (m?.substituted && chars) this.fontFallbacks.set(`${style.family} ${style.style}`, m.fontFamily);
     delete n.derivedTextData;
   }
 

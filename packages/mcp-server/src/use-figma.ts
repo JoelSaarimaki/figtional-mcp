@@ -15,6 +15,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { FigArchive, encodeCanvas, saveFigArchive } from '@figtional/fig-format';
 import { EditSession, FigDocument } from '@figtional/fig-model';
+import { drawnFontNote, measuredFontNote } from './font-notes.js';
 import { type ApiContext, createFigmaApi } from './plugin-api.js';
 import type { FileEntry, Workspace } from './workspace.js';
 
@@ -24,6 +25,8 @@ export interface UseFigmaResult {
   text: string;
   images: { data: string; caption: string }[];
   saved?: string;
+  /** Figtional limitations that affected this call (font replacements), as separate notes. */
+  notes?: string[];
 }
 
 const locks = new Map<string, Promise<unknown>>();
@@ -140,7 +143,17 @@ export async function runUseFigma(
       } else {
         archive.close();
       }
-      return { ok: true, text, images: ctx.images, ...(saved ? { saved } : {}) };
+      const notes = [
+        measuredFontNote(session.fontFallbacks),
+        drawnFontNote(ctx.drawnFontFallbacks ?? new Map()),
+      ].filter((n): n is string => !!n);
+      return {
+        ok: true,
+        text,
+        images: ctx.images,
+        ...(saved ? { saved } : {}),
+        ...(notes.length ? { notes } : {}),
+      };
     } catch (e) {
       archive.close();
       const err = e as Error;

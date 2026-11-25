@@ -19,7 +19,8 @@ import { metadataXml } from './metadata.js';
 import { AssetServer } from './assets.js';
 import { codeTarget, designContextText } from './design-context.js';
 import { runUseFigma } from './use-figma.js';
-import { renderPng } from '@figtional/fig-render';
+import { fontFallbacksIn, renderPng } from '@figtional/fig-render';
+import { drawnFontNote } from './font-notes.js';
 import { type FileEntry, FileNotAvailableError, type Workspace, parseFigmaUrl } from './workspace.js';
 
 export const SERVER_NAME = 'figtional';
@@ -314,7 +315,12 @@ export function createServer(workspace: Workspace, options: ServerOptions = {}):
         if (node.figType === 'DOCUMENT') throw new ToolError('invalid nodeId');
         // Longest side capped so the image stays usable for MCP clients (inferred; Figma's cap is unknown).
         const r = renderPng(doc, node, { maxSize: SCREENSHOT_MAX_SIZE });
-        return { content: [{ type: 'image', data: r.png.toString('base64'), mimeType: 'image/png' }] };
+        const content: CallToolResult['content'] = [
+          { type: 'image', data: r.png.toString('base64'), mimeType: 'image/png' },
+        ];
+        const note = drawnFontNote(fontFallbacksIn(r.warnings));
+        if (note) content.push({ type: 'text', text: note });
+        return { content };
       }),
   );
 
@@ -374,6 +380,7 @@ export function createServer(workspace: Workspace, options: ServerOptions = {}):
             { type: 'image', data: img.data, mimeType: 'image/png' },
           );
         }
+        for (const note of r.notes ?? []) content.push({ type: 'text', text: note });
         return r.ok ? { content } : { isError: true, content };
       }),
   );
