@@ -6,6 +6,8 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 
 ## [Unreleased]
 
+## [0.2.1]
+
 ### Changed
 
 - `use_figma` keeps the decoded document between calls while the file is unchanged on disk, so calls after the first are faster on large files (270 MB Futurice.com UI: about 2.0 s → 1.5 s per edit; read-only calls nearly instant). A failed call still leaves nothing behind.
@@ -101,7 +103,8 @@ First release.
 - **Web viewer** (`figtional serve`): page selector, layer tree, pan/zoom canvas, inspect panel, file info, prototype arrows and a basic Present mode. It reloads on file changes and only listens on `127.0.0.1`.
 - **CLI:** `mcp`, `serve`, `dump`, `inspect`, `validate` and per-command help.
 
-[Unreleased]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.2.0...development
+[Unreleased]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.2.1...development
+[0.2.1]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.4...v0.2.0
 [0.1.4]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.2...v0.1.3
