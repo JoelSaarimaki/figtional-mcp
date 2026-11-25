@@ -9,6 +9,7 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 ### Added
 
 - `use_figma`: `figma.group()` and `figma.ungroup()`. Layers keep their place on the canvas, and groups stay fitted to their children when those move or resize, as in Figma.
+- `use_figma`: boolean operations (`figma.union`, `subtract`, `intersect`, `exclude`) and `figma.flatten`, plus `booleanOperation` on boolean nodes. Screenshots and the viewer draw the results; Figma recomputes their exact outlines on import.
 
 ## [0.2.1]
 
