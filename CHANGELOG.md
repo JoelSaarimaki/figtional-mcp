@@ -10,6 +10,7 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 
 - `use_figma`: `figma.group()` and `figma.ungroup()`. Layers keep their place on the canvas, and groups stay fitted to their children when those move or resize, as in Figma.
 - `use_figma`: boolean operations (`figma.union`, `subtract`, `intersect`, `exclude`) and `figma.flatten`, plus `booleanOperation` on boolean nodes. Screenshots and the viewer draw the results; Figma recomputes their exact outlines on import.
+- `use_figma`: `node.exportAsync()` as PNG (with `SCALE`, `WIDTH` or `HEIGHT` constraints), `SVG` or `SVG_STRING`, and `node.getCSSAsync()` with the same CSS rules as `get_design_context`. JPG and PDF export are refused as Figtional limitations.
 
 ## [0.2.1]
 

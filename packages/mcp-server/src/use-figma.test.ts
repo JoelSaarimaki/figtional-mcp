@@ -417,6 +417,35 @@ describe('use_figma edits', () => {
     expect(doc.getNodeById(o.holder)!.children).toHaveLength(2);
   });
 
+  it('exports nodes as PNG and SVG and reads their CSS', async () => {
+    const r = await run(`
+      const f = figma.createFrame(); f.resize(40, 20); f.cornerRadius = 4;
+      f.fills = [{ type: 'SOLID', color: { r: 1, g: 0, b: 0 } }];
+      const png = await f.exportAsync();
+      const big = await f.exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: 2 } });
+      const svg = await f.exportAsync({ format: 'SVG_STRING' });
+      const svgBytes = await f.exportAsync({ format: 'SVG' });
+      let jpg = null;
+      try { await f.exportAsync({ format: 'JPG' }); } catch (e) { jpg = e.message; }
+      const css = await f.getCSSAsync();
+      const size = (b) => [(b[16] << 24) | (b[17] << 16) | (b[18] << 8) | b[19], (b[20] << 24) | (b[21] << 16) | (b[22] << 8) | b[23]];
+      return { png: size(png), big: size(big), svg: svg.startsWith('<svg'), svgBytes: svgBytes.length === svg.length, jpg, css };
+    `);
+    expect(r.ok, r.text).toBe(true);
+    const o = JSON.parse(r.text);
+    expect(o.png).toEqual([40, 20]);
+    expect(o.big).toEqual([80, 40]);
+    expect(o.svg).toBe(true);
+    expect(o.svgBytes).toBe(true);
+    expect(o.jpg).toMatch(/^NotSupportedInFigtional: exportAsync with format JPG/);
+    expect(o.css).toMatchObject({
+      width: '40px',
+      height: '20px',
+      'background-color': '#ff0000',
+      'border-radius': '4px',
+    });
+  });
+
   it('accumulates edits in --out copies and keeps the original untouched', async () => {
     const before = readFileSync(file);
     const out = join(dir, 'out');

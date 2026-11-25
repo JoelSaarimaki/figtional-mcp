@@ -35,7 +35,8 @@ import {
   isGroupData,
   outlineOf,
 } from '@figtional/fig-model';
-import { fontFallbacksIn, renderPng } from '@figtional/fig-render';
+import { fontFallbacksIn, renderPng, renderSvg } from '@figtional/fig-render';
+import { nodeCss } from './design-context.js';
 
 import { FigtionalUnsupported } from './unsupported.js';
 import {
@@ -667,8 +668,39 @@ export function createFigmaApi(ctx: ApiContext) {
       });
       return { width: r.width, height: r.height };
     }
-    async exportAsync() {
-      throw new FigtionalUnsupported('exportAsync', 'Use node.screenshot() or the get_screenshot tool.');
+    async exportAsync(settings: { format?: string; constraint?: { type: string; value: number } } = {}) {
+      session.commit();
+      const s = scene(this.id);
+      const format = settings.format ?? 'PNG';
+      if (format === 'SVG' || format === 'SVG_STRING') {
+        const r = renderSvg(doc, s);
+        for (const [font, used] of fontFallbacksIn(r.warnings))
+          (ctx.drawnFontFallbacks ??= new Map()).set(font, used);
+        return format === 'SVG_STRING' ? r.svg : Uint8Array.from(Buffer.from(r.svg));
+      }
+      if (format === 'PNG') {
+        const c = settings.constraint;
+        const scale =
+          c?.type === 'WIDTH'
+            ? c.value / Math.max(s.width, 1e-6)
+            : c?.type === 'HEIGHT'
+              ? c.value / Math.max(s.height, 1e-6)
+              : (c?.value ?? 1);
+        const r = renderPng(doc, s, { scale, maxSize: 4096 });
+        for (const [font, used] of fontFallbacksIn(r.warnings))
+          (ctx.drawnFontFallbacks ??= new Map()).set(font, used);
+        return Uint8Array.from(r.png);
+      }
+      if (['JPG', 'PDF', 'JSON_REST_V1'].includes(format))
+        throw new FigtionalUnsupported(
+          `exportAsync with format ${format}`,
+          'PNG, SVG and SVG_STRING are supported.',
+        );
+      throw new Error(`Invalid export format "${format}"`);
+    }
+    async getCSSAsync() {
+      session.commit();
+      return nodeCss(doc, ctx.fileKey, scene(this.id));
     }
     get reactions() {
       return deepFreeze([]);
