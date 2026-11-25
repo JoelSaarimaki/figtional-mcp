@@ -27,6 +27,11 @@ export class EditSession {
   readonly dirty = new Set<string>();
   /** Text nodes whose text or typography changed (re-measured on commit). */
   readonly dirtyText = new Set<string>();
+  /**
+   * Fonts that text was measured with a replacement for, because they aren't installed:
+   * "Family Style" → the installed family used (undefined: no fonts installed at all).
+   */
+  readonly fontFallbacks = new Map<string, string | undefined>();
   changed = false;
 
   constructor(readonly doc: FigDocument) {
@@ -346,14 +351,16 @@ export class EditSession {
     };
     const mode = n.textAutoResize ?? 'NONE';
     n.size ??= { x: 0, y: 0 };
+    let m: ReturnType<typeof measureText> | undefined;
     if (mode === 'WIDTH_AND_HEIGHT') {
-      const m = measureText(chars, style);
+      m = measureText(chars, style);
       n.size.x = Math.ceil(m.width);
       n.size.y = m.height;
     } else if (mode === 'HEIGHT') {
-      const m = measureText(chars, style, n.size.x);
+      m = measureText(chars, style, n.size.x);
       n.size.y = m.height;
     }
+    if (m?.substituted && chars) this.fontFallbacks.set(`${style.family} ${style.style}`, m.fontFamily);
     delete n.derivedTextData;
   }
 

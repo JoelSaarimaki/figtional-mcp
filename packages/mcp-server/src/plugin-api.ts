@@ -21,7 +21,7 @@ import {
   rotationDegrees,
   stackProps,
 } from '@figtional/fig-model';
-import { renderPng } from '@figtional/fig-render';
+import { fontFallbacksIn, renderPng } from '@figtional/fig-render';
 
 export class FigtionalUnsupported extends Error {
   constructor(api: string, detail = '') {
@@ -38,6 +38,8 @@ export interface ApiContext {
   fileName: string;
   /** Images attached by node.screenshot(). */
   images: { data: string; caption: string }[];
+  /** Fonts node.screenshot() drew edited text with a replacement for ("Family Style" → used). */
+  drawnFontFallbacks?: Map<string, string | undefined>;
 }
 
 const MIXED = Symbol('figma.mixed');
@@ -1587,6 +1589,8 @@ export function createFigmaApi(ctx: ApiContext) {
       const scale = opts.scale ?? 0.5;
       const maxSize = opts.scale !== undefined ? 8192 : 1024;
       const r = renderPng(doc, s, { scale, maxSize });
+      for (const [font, used] of fontFallbacksIn(r.warnings))
+        (ctx.drawnFontFallbacks ??= new Map()).set(font, used);
       ctx.images.push({
         data: r.png.toString('base64'),
         caption: `${s.name} (${Math.round(b.width)}x${Math.round(b.height)} at ${Math.round(b.x)},${Math.round(b.y)}).png`,

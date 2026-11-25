@@ -6,6 +6,10 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 
 ## [Unreleased]
 
+### Added
+
+- When a font isn't installed and its replacement affects a result, the tool says so in a separate "Figtional limitation" note: `use_figma` when it measured text with a replacement font (sizes and auto layout may differ in Figma), and `get_screenshot` / `node.screenshot()` when edited text is drawn with one. Results are otherwise unchanged.
+
 ### Fixed
 
 - `use_figma`: property values set on instances of a variant (`setProperties`, also after switching variant) were stored against the component set's property instead of the variant's, so Figma showed the default text and visibility after import. They are now stored the way Figma stores them.
