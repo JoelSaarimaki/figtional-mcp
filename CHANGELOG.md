@@ -24,6 +24,7 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 ### Fixed
 
 - `get_design_context`: corner radius came out as broken Tailwind (`border-r-[20px] border-undefined border-[]`) instead of `rounded-[20px]`, on every rounded frame, rectangle and ellipse. HTML/CSS output was not affected.
+- macOS and Linux: `figtional serve` without sources (and `figtional setup`) refused every folder below `/var` and `/opt`, including macOS's temporary folders. Now only `/var`, `/tmp`, `/opt` and similar folders themselves are refused; system trees like `/usr` and `/System` still are.
 
 ## [0.1.0]
 

@@ -1,5 +1,5 @@
 import { homedir } from 'node:os';
-import { parse, resolve, sep } from 'node:path';
+import { posix, win32 } from 'node:path';
 
 /**
  * Folders a bare `figtional serve` must not crawl: filesystem/drive roots, the home folder and
@@ -9,11 +9,13 @@ export function unsafeDefaultFolder(
   dir: string,
   env: NodeJS.ProcessEnv = process.env,
   home = homedir(),
+  platform: NodeJS.Platform = process.platform,
 ): string | undefined {
+  const { parse, resolve, sep } = platform === 'win32' ? win32 : posix;
   const norm = (p: string) => {
     const r = resolve(p);
     const t = r.length > parse(r).root.length ? r.replace(/[\\/]+$/, '') : r;
-    return process.platform === 'win32' ? t.toLowerCase() : t;
+    return platform === 'win32' ? t.toLowerCase() : t;
   };
   const d = norm(dir);
   if (d === norm(parse(resolve(dir)).root)) return 'the root of a drive or filesystem';
@@ -21,15 +23,46 @@ export function unsafeDefaultFolder(
   const system = [env.WINDIR, env.SystemRoot, env.ProgramFiles, env['ProgramFiles(x86)'], env.ProgramData]
     .filter((p): p is string => !!p)
     .map(norm);
-  // Folders that contain everyone's home folders: refuse only the folder itself.
+  // Folders refused themselves but not their subfolders: the parent of everyone's home folders,
+  // and Unix folders whose subfolders are ordinary places (macOS keeps temp folders under
+  // /var/folders, Linux under /tmp; designs may live in /opt/…, /Volumes/…, /mnt/…).
   const parents = [norm(resolve(home, '..'))];
-  if (process.platform !== 'win32') {
+  const shallow: string[] = [];
+  if (platform !== 'win32') {
     system.push(
-      ...['/usr', '/etc', '/var', '/opt', '/bin', '/sbin', '/System', '/Library', '/Applications'].map(norm),
+      ...[
+        '/usr',
+        '/etc',
+        '/bin',
+        '/sbin',
+        '/dev',
+        '/proc',
+        '/sys',
+        '/boot',
+        '/System',
+        '/Library',
+        '/private/etc',
+      ].map(norm),
     );
     parents.push(...['/Users', '/home'].map(norm));
+    shallow.push(
+      ...[
+        '/var',
+        '/tmp',
+        '/opt',
+        '/private',
+        '/private/var',
+        '/private/tmp',
+        '/Applications',
+        '/Volumes',
+        '/mnt',
+        '/media',
+        '/srv',
+      ].map(norm),
+    );
   }
   if (parents.includes(d)) return 'the folder that holds all user folders';
+  if (shallow.includes(d)) return 'a system folder';
   for (const s of system) {
     if (d === s || d.startsWith(s + sep)) return 'a system folder';
   }
