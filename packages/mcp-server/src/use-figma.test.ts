@@ -358,6 +358,26 @@ describe('use_figma edits', () => {
     });
   });
 
+  it('reuses the document between calls without keeping edits of a failed call', async () => {
+    const w = ws();
+    const e = w.resolve('a');
+    const ok = await runUseFigma(w, e, `const f = figma.createFrame(); f.name = 'Kept'; return f.id;`);
+    expect(ok.ok, ok.text).toBe(true);
+    const id = JSON.parse(ok.text);
+    const failed = await runUseFigma(
+      w,
+      e,
+      `(await figma.getNodeByIdAsync('${id}')).name = 'Partial'; throw new Error('boom');`,
+    );
+    expect(failed.ok).toBe(false);
+    const after = await runUseFigma(w, e, `return (await figma.getNodeByIdAsync('${id}')).name;`);
+    expect(JSON.parse(after.text)).toBe('Kept');
+    // A change made outside Figtional (e.g. a new export) is picked up, not the cached document.
+    writeFileSync(file, syntheticFig());
+    const fresh = await runUseFigma(w, e, `return !!(await figma.getNodeByIdAsync('${id}'));`);
+    expect(JSON.parse(fresh.text)).toBe(false);
+  });
+
   it('accumulates edits in --out copies and keeps the original untouched', async () => {
     const before = readFileSync(file);
     const out = join(dir, 'out');

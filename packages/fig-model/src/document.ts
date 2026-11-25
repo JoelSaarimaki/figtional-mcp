@@ -176,7 +176,8 @@ export class FigDocument {
 
   constructor(
     readonly canvas: DecodedCanvas,
-    readonly archive?: FigArchive,
+    /** The archive images are read from; replaced after the file is saved and reopened. */
+    public archive?: FigArchive,
   ) {
     if (!this.canvas.message.nodeChanges.some((n) => n.type === 'DOCUMENT'))
       throw new Error('file has no DOCUMENT node');

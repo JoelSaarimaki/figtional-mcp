@@ -6,6 +6,11 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 
 ## [Unreleased]
 
+### Changed
+
+- `use_figma` keeps the decoded document between calls while the file is unchanged on disk, so calls after the first are faster on large files (270 MB Futurice.com UI: about 2.0 s → 1.5 s per edit; read-only calls nearly instant). A failed call still leaves nothing behind.
+- Docs brought up to date with 0.2.0: README's editing features and limitations, the tool reference's implementation state, PLAN's status (M9 done: releases, multi-OS tests, Futurice.com UI loads in about 1.2 s).
+
 ### Fixed
 
 - `use_figma`: setting only one of `minWidth`/`minHeight` (or `maxWidth`/`maxHeight`) made the save fail ("missing required field Vector.y"). Unset dimensions are now stored as Figma does (0 for a minimum, Infinity for a maximum).
@@ -18,10 +23,6 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 - Instances didn't follow root changes of their main component (fills, padding, corner radius…), and `swapComponent` or an instance-swap property kept the old component's root fills. Instances now take their component's root values except where they override them, recorded the way Figma stores instance overrides.
 - Fonts installed as one variable font file (e.g. Inter 4) were used at their default weight only, so Semi Bold or Bold text was measured and drawn as Regular. Their named weights are now used.
 - Screenshots and the viewer now draw new and edited text with its styled ranges (fills, fonts, sizes, underline and strikethrough) and its text case (e.g. `UPPER`, also when measuring), and draw dashed strokes; `get_design_context` outputs dashed borders.
-
-### Changed
-
-- Docs brought up to date with 0.2.0: README's editing features and limitations, the tool reference's implementation state, PLAN's status (M9 done: releases, multi-OS tests, Futurice.com UI loads in about 1.2 s).
 
 ## [0.2.0]
 

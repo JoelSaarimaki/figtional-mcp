@@ -11,7 +11,7 @@
  * security boundary. Access control is the Workspace scope.
  */
 import { createContext, Script } from 'node:vm';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { FigArchive, encodeCanvas, saveFigArchive } from '@figtional/fig-format';
 import { EditSession, FigDocument } from '@figtional/fig-model';
@@ -76,6 +76,34 @@ function serialise(value: unknown): string {
   return JSON.stringify(plain(value), null, 2) ?? 'null';
 }
 
+/** Documents kept between use_figma calls (by file path), valid while the file is unchanged. */
+const documentCache = new Map<string, { doc: FigDocument; mtimeMs: number; size: number }>();
+const DOCUMENT_CACHE_SIZE = 2;
+
+function takeCachedDocument(path: string): FigDocument | undefined {
+  const c = documentCache.get(path);
+  documentCache.delete(path);
+  if (!c) return undefined;
+  try {
+    const st = statSync(path);
+    if (st.mtimeMs === c.mtimeMs && st.size === c.size) return c.doc;
+  } catch {
+    /* file gone */
+  }
+  c.doc.archive?.close();
+  return undefined;
+}
+
+function cacheDocument(path: string, doc: FigDocument): void {
+  const st = statSync(path);
+  documentCache.set(path, { doc, mtimeMs: st.mtimeMs, size: st.size });
+  while (documentCache.size > DOCUMENT_CACHE_SIZE) {
+    const [oldest, c] = documentCache.entries().next().value as [string, { doc: FigDocument }];
+    documentCache.delete(oldest);
+    c.doc.archive?.close();
+  }
+}
+
 export async function runUseFigma(
   workspace: Workspace,
   entry: FileEntry,
@@ -96,10 +124,12 @@ export async function runUseFigma(
     const target = workspace.options.outDir
       ? join(workspace.options.outDir, entry.path.split(/[\\/]/).pop()!)
       : entry.path;
-    // Always work on a fresh copy of the document, so a failed call leaves nothing behind.
-    const archive = FigArchive.open(existsSync(target) ? target : entry.path);
+    // The document of the previous successful call is reused while the file is unchanged on disk;
+    // it is taken out of the cache for the call, so a failed call leaves nothing behind.
+    const source = existsSync(target) ? target : entry.path;
+    const doc = takeCachedDocument(source) ?? FigDocument.fromArchive(FigArchive.open(source));
+    const archive = doc.archive!;
     try {
-      const doc = new FigDocument(archive.decodeCanvas(), archive);
       const session = new EditSession(doc);
       const ctx: ApiContext = { doc, session, fileKey: entry.key, fileName: entry.name, images: [] };
       const figma = createFigmaApi(ctx);
@@ -146,8 +176,10 @@ export async function runUseFigma(
         workspace.release(entry.path);
         saveFigArchive(archive, target, { canvas: encodeCanvas(doc.canvas) });
         saved = target;
+        doc.archive = FigArchive.open(target);
+        cacheDocument(target, doc);
       } else {
-        archive.close();
+        cacheDocument(source, doc);
       }
       const notes = [
         measuredFontNote(session.fontFallbacks),
