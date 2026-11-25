@@ -3,7 +3,7 @@
  * nodes, written the way Figma stores them (docs/fig-format.md §4.12):
  *
  * - A style is a hidden, locked node on the internal page with `styleType`: fill and effect styles
- *   are ROUNDED_RECTANGLEs (effect styles *assumed*, no reference file has one), text styles are
+ *   are ROUNDED_RECTANGLEs (effect styles verified by a Figma import check), text styles are
  *   TEXT nodes with the sample text "Rag 123", grid styles are FRAMEs.
  * - Nodes refer to a style with `styleIdForFill` / `…StrokeFill` / `…Text` / `…Effect` / `…Grid`:
  *   `{ guid }` for unpublished local styles, `{ assetRef: { key, version } }` for styles with a key
