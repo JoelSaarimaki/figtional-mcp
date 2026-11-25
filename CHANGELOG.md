@@ -21,6 +21,10 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 - README: the Quick start offers the download, the Claude Desktop extension and `figtional setup` before manual configuration; Git is only needed to install from source.
 - README: Limitations now lists what a `.fig` export leaves out (comments, history, sharing, live library links, Code Connect, fonts) and what it keeps.
 
+### Fixed
+
+- `get_design_context`: corner radius came out as broken Tailwind (`border-r-[20px] border-undefined border-[]`) instead of `rounded-[20px]`, on every rounded frame, rectangle and ellipse. HTML/CSS output was not affected.
+
 ## [0.1.0]
 
 First release.
