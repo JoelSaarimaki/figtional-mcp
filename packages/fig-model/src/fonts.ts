@@ -19,6 +19,8 @@ export interface FontFace {
   path: string;
   /** postscript name, to pick a face inside a .ttc collection */
   postscript?: string;
+  /** Axis settings of a named instance of a variable font (e.g. { wght: 600 }). */
+  variation?: Record<string, number>;
 }
 
 /** Font folders per OS. Extra folders can be added with FIGTIONAL_FONT_DIRS (path-delimited). */
@@ -104,6 +106,24 @@ export function systemFonts(): FontFace[] {
             path: full,
             postscript: face.postscriptName,
           });
+          // A variable font holds every weight in one face: index its named instances
+          // (Thin…Black) as faces of their own, so "Semi Bold" isn't measured as Regular.
+          if (face.variationAxes?.wght) {
+            for (const [name, coords] of Object.entries<Record<string, number>>(face.namedVariations ?? {})) {
+              const k = `${norm(family)}|${norm(name)}`;
+              if (seen.has(k)) continue;
+              seen.add(k);
+              faces.push({
+                family,
+                style: name,
+                weight: coords.wght ?? styleWeight(name),
+                italic: /italic|oblique/i.test(name) || (coords.ital ?? 0) > 0,
+                path: full,
+                postscript: face.postscriptName,
+                variation: coords,
+              });
+            }
+          }
         }
       } catch {
         /* unreadable font file */
@@ -168,7 +188,7 @@ export function resolveFont(family: string, style: string): ResolvedFont | undef
 
 const loaded = new Map<string, any>();
 function openFace(face: FontFace): any {
-  const key = `${face.path}|${face.postscript ?? ''}`;
+  const key = `${face.path}|${face.postscript ?? ''}|${JSON.stringify(face.variation ?? {})}`;
   let f = loaded.get(key);
   if (!f) {
     const fontkit = require('fontkit');
@@ -176,6 +196,7 @@ function openFace(face: FontFace): any {
     f = file.fonts
       ? (file.fonts.find((x: any) => x.postscriptName === face.postscript) ?? file.fonts[0])
       : file;
+    if (face.variation) f = f.getVariation(face.variation);
     loaded.set(key, f);
   }
   return f;
@@ -276,4 +297,53 @@ export function measureText(text: string, s: TextStyleInput, maxWidth?: number):
 /** Plugin-API style font list (figma.listAvailableFontsAsync). */
 export function availableFonts(): { fontName: { family: string; style: string } }[] {
   return systemFonts().map((f) => ({ fontName: { family: f.family, style: f.style } }));
+}
+
+/** Text as displayed with Figma's `textCase` (the stored characters keep their case). */
+export function applyTextCase(text: string, textCase: string | undefined): string {
+  switch (textCase) {
+    case 'UPPER':
+    case 'SMALL_CAPS_FORCED':
+      return text.toUpperCase();
+    case 'LOWER':
+      return text.toLowerCase();
+    case 'TITLE':
+      return text.replace(/(^|[\s\-‐-―/])(\p{L})/gu, (_m, sep: string, c: string) => sep + c.toUpperCase());
+    default:
+      return text;
+  }
+}
+
+/**
+ * Glyph outlines of a single-style run as SVG path data, starting at `x` on `baseline` (the same
+ * font and letter spacing as measureText). Undefined when no font is installed at all.
+ */
+export function textRunPath(
+  text: string,
+  s: TextStyleInput,
+  x: number,
+  baseline: number,
+): string | undefined {
+  const resolved = resolveFont(s.family, s.style);
+  if (!resolved || !text) return resolved ? '' : undefined;
+  const font = openFace(resolved.face);
+  const upm = font.unitsPerEm || 1000;
+  const scale = s.size / upm;
+  const spacing =
+    s.letterSpacing?.units === 'PIXELS'
+      ? s.letterSpacing.value
+      : ((s.letterSpacing?.value ?? 0) / 100) * s.size;
+  const run = font.layout(text);
+  const parts: string[] = [];
+  let pen = x;
+  run.glyphs.forEach((g: any, i: number) => {
+    const pos = run.positions[i] ?? { xAdvance: g.advanceWidth, xOffset: 0, yOffset: 0 };
+    const d = g.path
+      ?.scale(scale, -scale)
+      .translate(pen + (pos.xOffset ?? 0) * scale, baseline - (pos.yOffset ?? 0) * scale)
+      .toSVG();
+    if (d) parts.push(d);
+    pen += pos.xAdvance * scale + spacing;
+  });
+  return parts.join('');
 }

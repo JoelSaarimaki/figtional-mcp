@@ -299,6 +299,7 @@ class Builder {
     if (strokes.length && (d.strokeWeight ?? 0) > 0) {
       const color = this.colorValue(strokes[strokes.length - 1]);
       const w = d.strokeWeight ?? 1;
+      const lineStyle = (d.dashPattern ?? []).length ? 'dashed' : 'solid';
       if (d.borderStrokeWeightsIndependent) {
         for (const [side, v] of [
           ['top', d.borderTopWeight],
@@ -306,12 +307,12 @@ class Builder {
           ['bottom', d.borderBottomWeight],
           ['left', d.borderLeftWeight],
         ] as const) {
-          if (v) css.push([`border-${side}`, `${px(v)} solid ${color}`]);
+          if (v) css.push([`border-${side}`, `${px(v)} ${lineStyle} ${color}`]);
         }
-      } else if (d.strokeAlign === 'OUTSIDE') css.push(['outline', `${px(w)} solid ${color}`]);
+      } else if (d.strokeAlign === 'OUTSIDE') css.push(['outline', `${px(w)} ${lineStyle} ${color}`]);
       else if (d.strokeAlign === 'CENTER')
-        css.push(['outline', `${px(w)} solid ${color}`], ['outline-offset', px(-w / 2)]);
-      else css.push(['border', `${px(w)} solid ${color}`]);
+        css.push(['outline', `${px(w)} ${lineStyle} ${color}`], ['outline-offset', px(-w / 2)]);
+      else css.push(['border', `${px(w)} ${lineStyle} ${color}`]);
       if (d.strokeAlign === 'INSIDE' || d.strokeAlign === undefined) css.push(['box-sizing', 'border-box']);
     }
     const shadows = (d.effects ?? [])
@@ -321,7 +322,9 @@ class Builder {
           `${e.type === 'INNER_SHADOW' ? 'inset ' : ''}${px(e.offset?.x ?? 0)} ${px(e.offset?.y ?? 0)} ${px(e.radius ?? 0)} ${px(e.spread ?? 0)} ${colorToHex(e.color).toLowerCase()}`,
       );
     if (shadows.length) css.push(['box-shadow', shadows.join(', ')]);
-    const blur = (d.effects ?? []).find((e: any) => e.visible !== false && e.type === 'LAYER_BLUR');
+    const blur = (d.effects ?? []).find(
+      (e: any) => e.visible !== false && (e.type === 'FOREGROUND_BLUR' || e.type === 'LAYER_BLUR'),
+    );
     if (blur) css.push(['filter', `blur(${px((blur.radius ?? 0) / 2)})`]);
     const bgBlur = (d.effects ?? []).find((e: any) => e.visible !== false && e.type === 'BACKGROUND_BLUR');
     if (bgBlur) css.push(['backdrop-filter', `blur(${px((bgBlur.radius ?? 0) / 2)})`]);

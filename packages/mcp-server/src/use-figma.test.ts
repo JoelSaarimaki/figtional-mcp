@@ -273,6 +273,111 @@ describe('use_figma edits', () => {
     expect(renderSvg(doc, frame).svg).toContain('#000000');
   });
 
+  it('saves a single min/max dimension the way Figma stores it (unset min 0, unset max Infinity)', async () => {
+    const r = await run(`
+      const f = figma.createFrame();
+      f.layoutMode = 'VERTICAL';
+      f.minWidth = 120;
+      f.maxHeight = 300;
+      const before = [f.minWidth, f.minHeight, f.maxWidth, f.maxHeight];
+      f.minWidth = null;
+      return { id: f.id, before, after: [f.minWidth, f.maxHeight] };
+    `);
+    expect(r.ok, r.text).toBe(true);
+    const o = JSON.parse(r.text);
+    expect(o.before).toEqual([120, null, null, 300]);
+    expect(o.after).toEqual([null, 300]);
+    const f = reload().getNodeById(o.id)!;
+    expect(f.data.minSize).toBeUndefined();
+    expect(f.data.maxSize.value).toEqual({ x: Infinity, y: 300 });
+  });
+
+  it('writes layer blurs as FOREGROUND_BLUR, the name in the file schema', async () => {
+    const r = await run(`
+      const f = figma.createRectangle();
+      f.effects = [{ type: 'LAYER_BLUR', radius: 4, visible: true }];
+      return { id: f.id, type: f.effects[0].type };
+    `);
+    expect(r.ok, r.text).toBe(true);
+    const o = JSON.parse(r.text);
+    expect(o.type).toBe('LAYER_BLUR');
+    expect(reload().getNodeById(o.id)!.data.effects[0].type).toBe('FOREGROUND_BLUR');
+  });
+
+  it('serialises repeated (non-circular) references in full', async () => {
+    const r = await run(
+      `const o = { a: 1 }; const c = { self: null }; c.self = c; return { x: o, y: o, list: [o, o], c };`,
+    );
+    expect(r.ok, r.text).toBe(true);
+    expect(JSON.parse(r.text)).toEqual({
+      x: { a: 1 },
+      y: { a: 1 },
+      list: [{ a: 1 }, { a: 1 }],
+      c: { self: '[Circular]' },
+    });
+  });
+
+  it('keeps an explicitly set text layer name when the text changes (autoRename off), like Figma', async () => {
+    const r = await run(`
+      const t = figma.createText();
+      t.characters = 'First';
+      const auto = t.name;
+      t.name = 'Title';
+      t.characters = 'Second';
+      return { auto, named: t.name, autoRename: t.autoRename };
+    `);
+    expect(r.ok, r.text).toBe(true);
+    expect(JSON.parse(r.text)).toEqual({ auto: 'First', named: 'Title', autoRename: false });
+  });
+
+  it('applies bound numbers, strings and booleans in the mode in effect, also per corner', async () => {
+    const r = await run(`
+      const c = figma.variables.createVariableCollection('Content');
+      c.renameMode(c.defaultModeId, 'English');
+      const fi = c.addMode('Finnish');
+      const title = figma.variables.createVariable('title', c, 'STRING');
+      title.setValueForMode(c.defaultModeId, 'Settings'); title.setValueForMode(fi, 'Asetukset');
+      const show = figma.variables.createVariable('show', c, 'BOOLEAN');
+      show.setValueForMode(c.defaultModeId, true); show.setValueForMode(fi, false);
+      const radius = figma.variables.createVariable('radius', c, 'FLOAT');
+      radius.setValueForMode(c.defaultModeId, 8); radius.setValueForMode(fi, 20);
+      const frame = figma.createFrame();
+      const t = figma.createText(); t.characters = 'x'; frame.appendChild(t);
+      t.setBoundVariable('characters', title);
+      const row = figma.createRectangle(); frame.appendChild(row);
+      row.setBoundVariable('visible', show);
+      row.setBoundVariable('topLeftRadius', radius);
+      const english = { text: t.characters, visible: row.visible, tl: row.topLeftRadius, tr: row.topRightRadius };
+      frame.setExplicitVariableModeForCollection(c, fi);
+      return { english, finnish: { text: t.characters, visible: row.visible, tl: row.topLeftRadius } };
+    `);
+    expect(r.ok, r.text).toBe(true);
+    expect(JSON.parse(r.text)).toEqual({
+      english: { text: 'Settings', visible: true, tl: 8, tr: 0 },
+      finnish: { text: 'Asetukset', visible: false, tl: 20 },
+    });
+  });
+
+  it('reuses the document between calls without keeping edits of a failed call', async () => {
+    const w = ws();
+    const e = w.resolve('a');
+    const ok = await runUseFigma(w, e, `const f = figma.createFrame(); f.name = 'Kept'; return f.id;`);
+    expect(ok.ok, ok.text).toBe(true);
+    const id = JSON.parse(ok.text);
+    const failed = await runUseFigma(
+      w,
+      e,
+      `(await figma.getNodeByIdAsync('${id}')).name = 'Partial'; throw new Error('boom');`,
+    );
+    expect(failed.ok).toBe(false);
+    const after = await runUseFigma(w, e, `return (await figma.getNodeByIdAsync('${id}')).name;`);
+    expect(JSON.parse(after.text)).toBe('Kept');
+    // A change made outside Figtional (e.g. a new export) is picked up, not the cached document.
+    writeFileSync(file, syntheticFig());
+    const fresh = await runUseFigma(w, e, `return !!(await figma.getNodeByIdAsync('${id}'));`);
+    expect(JSON.parse(fresh.text)).toBe(false);
+  });
+
   it('accumulates edits in --out copies and keeps the original untouched', async () => {
     const before = readFileSync(file);
     const out = join(dir, 'out');

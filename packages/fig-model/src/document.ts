@@ -7,6 +7,7 @@ import {
   guidToString,
   isNullGuid,
 } from '@figtional/fig-format';
+import { INSTANCE_FIELDS } from './instance-fields.js';
 import { IDENTITY, type Rect, multiply, transformedBounds } from './matrix.js';
 
 /** Node types as the Plugin API names them, keyed by .fig type. */
@@ -175,7 +176,8 @@ export class FigDocument {
 
   constructor(
     readonly canvas: DecodedCanvas,
-    readonly archive?: FigArchive,
+    /** The archive images are read from; replaced after the file is saved and reopened. */
+    public archive?: FigArchive,
   ) {
     if (!this.canvas.message.nodeChanges.some((n) => n.type === 'DOCUMENT'))
       throw new Error('file has no DOCUMENT node');
@@ -393,6 +395,21 @@ export class FigDocument {
     if (data.textData !== src.textData && !d?.derivedTextData && textChanged(src, data))
       delete data.derivedTextData;
     this.applyComponentProps(data, ctx);
+    // A swapped nested instance looks like its new component at the root, except for overrides.
+    const swapped = data.type === 'INSTANCE' ? this.effectiveSymbolId(data) : undefined;
+    if (swapped && guidToString(swapped) !== guidToString(src.symbolData?.symbolID ?? swapped)) {
+      const symbol = this.nodes.get(guidToString(swapped));
+      if (symbol) {
+        const overridden = new Set<string>();
+        for (const o of ctx.overrides.get(key) ?? []) for (const f of Object.keys(o)) overridden.add(f);
+        for (const f of Object.keys(d ?? {})) overridden.add(f);
+        for (const f of INSTANCE_FIELDS) {
+          if (overridden.has(f)) continue;
+          if (symbol[f] !== undefined) data[f] = symbol[f];
+          else delete data[f];
+        }
+      }
+    }
     const id = `${ctx.idPrefix};${guidToString(overrideId(src))}`;
     return new SceneNode(this, id, data, parent, { ...ctx, path: ctx.path });
   }

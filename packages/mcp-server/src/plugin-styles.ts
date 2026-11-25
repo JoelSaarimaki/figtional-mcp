@@ -1,6 +1,6 @@
 /**
  * Styles in the Plugin API (PaintStyle, TextStyle, EffectStyle, GridStyle) and applying them to
- * nodes, written the way Figma stores them (docs/fig-format.md §4.12):
+ * nodes, written the way Figma stores them (docs/fig-format.md §10):
  *
  * - A style is a hidden, locked node on the internal page with `styleType`: fill and effect styles
  *   are ROUNDED_RECTANGLEs (effect styles verified by a Figma import check), text styles are

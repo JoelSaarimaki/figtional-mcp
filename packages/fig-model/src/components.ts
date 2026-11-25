@@ -1,7 +1,7 @@
 /**
  * Components: component sets (variants), component properties, property bindings, instance
  * property values and detaching. Formats verified against the reference files
- * (docs/fig-format.md §4.8):
+ * (docs/fig-format.md §8):
  *
  * - Set: FRAME with `isStateGroup`, all property definitions in `componentPropDefs`, and
  *   `stateGroupPropertyValueOrders` [{ property, values[] }].
@@ -15,37 +15,11 @@ import { type GUID, type NodeChange, guidToString, isNullGuid } from '@figtional
 import type { FigDocument, SceneNode } from './document.js';
 import type { EditSession } from './edit.js';
 import { keyBetween } from './fractional-index.js';
+import { INSTANCE_FIELDS } from './instance-fields.js';
+
+export { INSTANCE_FIELDS };
 
 export type PropType = 'TEXT' | 'BOOLEAN' | 'INSTANCE_SWAP' | 'VARIANT';
-
-/** Fields an instance takes from its main component when created or swapped. */
-export const INSTANCE_FIELDS = [
-  'size',
-  'fillPaints',
-  'strokePaints',
-  'strokeWeight',
-  'strokeAlign',
-  'cornerRadius',
-  'rectangleCornerRadiiIndependent',
-  'rectangleTopLeftCornerRadius',
-  'rectangleTopRightCornerRadius',
-  'rectangleBottomLeftCornerRadius',
-  'rectangleBottomRightCornerRadius',
-  'frameMaskDisabled',
-  'stackMode',
-  'stackSpacing',
-  'stackHorizontalPadding',
-  'stackVerticalPadding',
-  'stackPaddingRight',
-  'stackPaddingBottom',
-  'stackPrimarySizing',
-  'stackCounterSizing',
-  'stackPrimaryAlignItems',
-  'stackCounterAlignItems',
-  'stackWrap',
-  'bordersTakeSpace',
-  'effects',
-];
 
 /** Copies the component's own fields onto an instance (missing ones are removed). */
 export function copyInstanceFields(target: NodeChange, from: NodeChange): void {

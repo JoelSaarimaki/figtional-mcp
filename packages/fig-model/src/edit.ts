@@ -17,7 +17,7 @@ import {
   overrideId,
 } from './document.js';
 import { keyBetween, spreadKeys } from './fractional-index.js';
-import { measureText } from './fonts.js';
+import { applyTextCase, measureText } from './fonts.js';
 import { computeLayout, stackProps } from './layout.js';
 
 export class EditSession {
@@ -349,7 +349,7 @@ export class EditSession {
 
   /** Measures a text node with installed fonts and updates its size per textAutoResize. */
   measure(n: NodeChange): void {
-    const chars: string = n.textData?.characters ?? '';
+    const chars: string = applyTextCase(n.textData?.characters ?? '', n.textCase);
     const style = {
       family: n.fontName?.family ?? 'Inter',
       style: n.fontName?.style ?? 'Regular',

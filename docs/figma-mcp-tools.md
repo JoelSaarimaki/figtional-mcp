@@ -44,7 +44,7 @@ Read tools are rate-limited: Starter/View/Collab seats get up to 6 calls **per m
 
 ## 2. Tool inventory
 
-The 19 tools titled in `.mcp.json` are the core set. Other tools are mentioned only in skills and may be gated or rolling out. The **Figtional** column is the implementation state in Figtional 0.1.0.
+The 19 tools titled in `.mcp.json` are the core set. Other tools are mentioned only in skills and may be gated or rolling out. The **Figtional** column is the implementation state in Figtional 0.2.0.
 
 | Tool | Kind | Figtional |
 |---|---|---|
@@ -53,7 +53,7 @@ The 19 tools titled in `.mcp.json` are the core set. Other tools are mentioned o
 | `get_design_context` | read | yes |
 | `get_screenshot` | read | yes |
 | `get_variable_defs` | read | yes |
-| `get_figjam` | read | not yet (planned for FigJam exports) |
+| `get_figjam` | read | not yet (low priority: needs FigJam exports) |
 | `search_design_system` | read | yes (the file and its embedded library assets) |
 | `get_libraries` | read | yes (libraries embedded in the export) |
 | `get_code_connect_map` | Code Connect read | yes (always empty: no Code Connect data in `.fig`) |
@@ -64,7 +64,7 @@ The 19 tools titled in `.mcp.json` are the core set. Other tools are mentioned o
 | `create_design_system_rules` | prompt | yes |
 | `use_figma` | write (JS) | yes (Plugin API subset; see README) |
 | `create_new_file` | write | no |
-| `upload_assets` | write | no (only images already in the file can be used) |
+| `upload_assets` | write | no (use `figma.createImage()` in `use_figma` instead) |
 | `generate_diagram` | write (Mermaid→FigJam) | no |
 | `generate_figma_design` | write (web capture) | no |
 | `generate_image` | write (AI, credits) | no |
@@ -170,7 +170,7 @@ Source: `skills/figma-code-connect/SKILL.md`, `skills/figma-generate-library/ref
 
 ---
 
-## 4. Write and other tools (not planned for Figtional, recorded for completeness)
+## 4. Write and other tools (recorded for completeness; of these, Figtional implements only `create_design_system_rules`)
 
 - **`add_code_connect_map`**: `nodeId`, `fileKey`, `source`, `componentName`, `label` (enum: `React`, `Web Components`, `Vue`, `Svelte`, `Storybook`, `Javascript`, `Swift`, `Swift UIKit`, `Objective-C UIKit`, `SwiftUI`, `Compose`, `Java`, …), `template` (O), `templateDataJson` (O). Errors: `CODE_CONNECT_MAPPING_ALREADY_EXISTS`, `CODE_CONNECT_ASSET_NOT_FOUND`, `CODE_CONNECT_INSUFFICIENT_PERMISSIONS`, `CODE_CONNECT_NO_LIBRARY_FOUND`.
 - **`send_code_connect_mappings`**: `fileKey`, `nodeId` (O), `mappings[]` of `{nodeId, componentName, source, label, template?, templateDataJson?}`. Errors are reported per mapping. On full success it returns fresh `get_design_context` output.
@@ -259,7 +259,7 @@ Counts are occurrences inside code blocks of every `skills/**/*.md` plus `skills
 **Tier 4 (< 10):** `.textAlignHorizontal` 9 · `figma.variables.importVariableByKeyAsync` 9 · `figma.variables.getLocalVariablesAsync` 9 · `figma.createTable` 9 · `.description` 8 · `figma.getSlideGrid` 8 · `figma.createPage` 7 · `.set()` 7 · `.query()` 7 · `componentProperties` 7 · `figma.motion.*` 7 · `figma.importStyleByKeyAsync` 6 · `figma.createTextStyle` 6 · `figma.createNodeFromSvg` 6 · `.strokeWeight` 6 · `boundVariables` (read) 6 · `.setExplicitVariableModeForCollection()` 5 · `.effectStyleId` 5 · `figma.importComponentByKeyAsync` 5 · `figma.createLine` 5 · `figma.listAvailableFontsAsync` 4 · `figma.getLocalTextStylesAsync` 4 · `figma.createEffectStyle` 4 · `.setProperties()` 4 · `.insertChild()` 4 · `.insertCharacters()` 4 · `.detachInstance()` 4 · `.dashPattern` 4 · `.rotation` 4 · `.opacity` 4 · `figma.variables.createVariableAlias` 3 · `.setTextStyleIdAsync()` 3 · `.screenshot()` 3 · `.deleteCharacters()` 3 · `.layoutWrap` 3 · `.layoutGrow` 3 · `.clipsContent` 3 · `.documentationLinks` 3 · `figma.mixed` 3 · `figma.util.getSfSymbolCharacter` 3 · `figma.createVector` 3 · `figma.variables.setBoundVariableForEffect` 2 · `figma.group` 2 · `figma.createEllipse`/`createStar` 2 · `.placeholder` 2 · `.constraints` 2 · `.layoutGrids` 2 · `page.loadAsync` 2 · `.textCase` 2 · `.textAlignVertical` 2 · `.strokeAlign` 2 · `figma.getLocalEffectStylesAsync` 3 · single uses: `swapComponent`, `editComponentProperty`, `setRangeFontName`, `setRangeFontSize`, `setRangeFills`, `getRangeFontName`, `setFillStyleIdAsync`, `setStrokeStyleIdAsync`, `setEffectStyleIdAsync`, `textStyleId`, `textDecoration`, `layoutPositioning`, `counterAxisSpacing`, `blendMode`, `findChildren`, `findChild`, `exportAsync`, `getMainComponentAsync`, `figma.viewport.scrollAndZoomIntoView`.
 
 Takeaways for Figtional's subset (compared with PLAN §5.3):
-- **State in Figtional 0.1.0.** Implemented: `createAutoLayout`, `node.query`/`node.set`, `getStyledTextSegments`, `addComponentProperty` (returns a key) and the other component property APIs, `setVariableCodeSyntax`, `variable.scopes`, `renameMode`, `findAllWithCriteria`, `node.screenshot()`, `placeholder`, `importComponentSetByKeyAsync` (embedded library sets only). Since 0.2.0 also `setExplicitVariableModeForCollection`, `clearExplicitVariableModeForCollection`, `explicitVariableModes` and `resolvedVariableModes` (frames, components, sets, instances, sections). Also styles since 0.2.0: `createPaintStyle` / `createTextStyle` / `createEffectStyle` / `createGridStyle` (grid styles can't be edited yet), `getLocal*StylesAsync`, `getStyleByIdAsync`, `importStyleByKeyAsync` (styles embedded in the file), `fillStyleId` / `strokeStyleId` / `effectStyleId` / `gridStyleId` / `textStyleId` with the `set*StyleIdAsync` setters (the plain setters throw the dynamic-page error, as in Figma's MCP runtime), and style `name` / `description` / `paints` / `effects` / typography / `remove()`. Images since 0.2.0: `figma.createImage(bytes)` (PNG, JPEG, GIF up to 4096 px), `createImageAsync` with `data:` URLs (other URLs are refused: Figtional makes no network requests), `getImageByHash`, `image.getBytesAsync()` / `getSizeAsync()`, `figma.base64Encode` / `base64Decode`. Vectors since 0.2.0: `figma.createNodeFromSvg()` (a frame of vectors from paths and basic shapes with solid fills and strokes; groups are flattened; text, images, `<use>`, gradients, clip paths, masks and filters are refused as Figtional limitations), `figma.createVector()`, `vectorPaths`, `vectorNetwork` and `setVectorNetworkAsync`.
+- **State in Figtional 0.2.0.** Implemented: `createAutoLayout`, `node.query`/`node.set`, `getStyledTextSegments`, `addComponentProperty` (returns a key) and the other component property APIs, `setVariableCodeSyntax`, `variable.scopes`, `renameMode`, `findAllWithCriteria`, `node.screenshot()`, `placeholder`, `importComponentSetByKeyAsync` (embedded library sets only). Since 0.2.0 also `setExplicitVariableModeForCollection`, `clearExplicitVariableModeForCollection`, `explicitVariableModes` and `resolvedVariableModes` (frames, components, sets, instances, sections). Also styles since 0.2.0: `createPaintStyle` / `createTextStyle` / `createEffectStyle` / `createGridStyle` (grid styles can't be edited yet), `getLocal*StylesAsync`, `getStyleByIdAsync`, `importStyleByKeyAsync` (styles embedded in the file), `fillStyleId` / `strokeStyleId` / `effectStyleId` / `gridStyleId` / `textStyleId` with the `set*StyleIdAsync` setters (the plain setters throw the dynamic-page error, as in Figma's MCP runtime), and style `name` / `description` / `paints` / `effects` / typography / `remove()`. Images since 0.2.0: `figma.createImage(bytes)` (PNG, JPEG, GIF up to 4096 px), `createImageAsync` with `data:` URLs (other URLs are refused: Figtional makes no network requests), `getImageByHash`, `image.getBytesAsync()` / `getSizeAsync()`, `figma.base64Encode` / `base64Decode`. Vectors since 0.2.0: `figma.createNodeFromSvg()` (a frame of vectors from paths and basic shapes with solid fills and strokes; groups are flattened; text, images, `<use>`, gradients, clip paths, masks and filters are refused as Figtional limitations), `figma.createVector()`, `vectorPaths`, `vectorNetwork` and `setVectorNetworkAsync`.
 - **Order:** text and paint plus `getNodeByIdAsync` and `appendChild`/`resize` cover most usage. Auto layout and variables come next. Components come after that.
 - **FigJam/Slides APIs** (`createSticky`, `createShapeWithText`, `createConnector`, `createTable`, slide grid) matter only if FigJam/Slides exports are supported.
 

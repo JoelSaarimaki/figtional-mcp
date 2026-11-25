@@ -14,11 +14,11 @@ Read [PLAN.md](PLAN.md) before starting any milestone, and keep it up to date (t
 
 ```
 packages/fig-format   # .fig zip + fig-kiwi + kiwi decode/encode, blob codecs (pure, no policy)
-packages/fig-model    # document tree, instances, variables, auto layout (layout.ts), editing (edit.ts), components (components.ts), fonts
+packages/fig-model    # document tree, instances, variables, auto layout (layout.ts), editing (edit.ts), components (components.ts), fonts, SVG paths/import (vector-path.ts, svg-import.ts)
 packages/fig-render   # node → SVG / PNG (resvg); render-diff tests against Figma exports
-packages/mcp-server   # MCP tools (Figma-compatible names + figtional_* extras), Workspace (source scoping), use_figma + Plugin API subset, asset server
+packages/mcp-server   # MCP tools (Figma-compatible names + figtional_* extras), Workspace (source scoping), use_figma + Plugin API subset (plugin-api.ts builds `figma`; node members in node-*.ts, styles, variables, queries and helpers in plugin-*.ts), asset server
 packages/viewer       # read-only web viewer: src/server.ts (API) + static/ (plain JS client, no build step)
-packages/cli          # `figtional` CLI: mcp | serve | dump | inspect | validate
+packages/cli          # `figtional` CLI: setup | mcp | serve | dump | inspect | validate
 test/                 # shared test helpers: synthetic .fig builder, references/ paths
 references/           # real Figma exports + screenshots + PNG/SVG exports (local only, git-ignored; free to read)
 docs/                 # fig-format.md (format notes), figma-mcp-tools.md (official tool reference), compat-log.md (Figma import checks), images/ (README screenshot)
@@ -66,7 +66,7 @@ Cross-platform: the code must work on Windows, macOS and Linux. Use `node:path`/
 3. **Access control is the core feature.** Sources are one file, several files, or a folder (`*.fig`, non-recursive unless `recursive`). Never add a tool, endpoint or option that lists, searches or opens anything outside the configured sources. Resolve folder contents with `realpath` and reject symlink/`..` escapes. Files are read-only unless marked writable. The viewer binds to `127.0.0.1` only. Do not add network calls. See PLAN.md §4. Source scoping is the **only** privacy feature: don't add others (image toggles, redaction, …) unless asked.
 4. **Mirror Figma MCP** for Figma-named tools (names, params, output formats, and limits where practical), using `docs/figma-mcp-tools.md` as the reference. Anything else goes under the `figtional_` prefix and is **off by default** (`--extra-tools`). Errors for unsupported features must say they are *Figtional* limitations. `use_figma` saves after every successful call (no save step), as Figma applies changes live. No textual change reports: the viewer is how changes are reviewed.
 5. **Writes are atomic** (temp file + rename) and keep a `.bak` copy. Never modify files in `references/`. Write test outputs to a temp dir.
-6. **When Figma has an older and a newer form of the same data, copy what Figma does.** Write the newer form, keep the older fields that are already present in sync, and never strip or migrate them on our own. When unsure, run an edit-and-export experiment in Figma before writing the code (see fig-format.md §4.11 for prototypes).
+6. **When Figma has an older and a newer form of the same data, copy what Figma does.** Write the newer form, keep the older fields that are already present in sync, and never strip or migrate them on our own. When unsure, run an edit-and-export experiment in Figma before writing the code (see fig-format.md §11.4 for prototypes).
 7. **Validate compatibility with the references**: every format change needs a round-trip test, and rendering changes should be checked against the PNG/SVG exports and screenshots in `references/`. Changes to the encoder need a manual Figma import check, logged in `docs/compat-log.md`.
 8. `references/` is harmless (a public website's design files, personal projects and Figma demo files). **You may read and decode its contents freely**, without asking. It is **never committed to git**: the useful outputs are the format knowledge in `docs/fig-format.md` and test results. Never modify the originals. Tests that use reference files must skip cleanly when they are missing (for example in CI or a fresh clone).
 9. `Futurice.com UI.fig` is about 270 MB / 17k nodes. Avoid O(n²) tree operations, and don't load all images eagerly.
@@ -84,7 +84,7 @@ Cross-platform: the code must work on Windows, macOS and Linux. Use `node:path`/
 - Use `Playground.fig` (33 nodes) for fast unit tests, and `Responsive example.fig` (534 nodes, modern prototype flow, exports of every frame) and `Prototyping in Figma.fig` (921 nodes, legacy-format prototype with overlays, scroll and device, 14 frame exports) for prototype and first render-diff tests. Use the larger files only for integration and perf tests.
 - Editing goes through `EditSession` (`fig-model/src/edit.ts`): never push to `message.nodeChanges` or change `parentIndex` by hand. Call `commit()` to measure text and re-run auto layout. In the Plugin API layer, mirror Figma's error strings (docs/figma-mcp-tools.md §5.4) and throw `FigtionalUnsupported` for anything not implemented.
 - Fonts: use only installed system fonts, with no bundled fonts. Fall back to a basic sans/serif/mono font when one is missing. Never rewrite a node's `fontName` to the fallback.
-- MIT licence. npm publishing (`figtional`) is planned but not soon, so docs tell MCP clients to run `node <repo>/packages/cli/dist/bin.js mcp …`.
+- MIT licence. npm publishing (`figtional`) is planned but not soon. Users install from the release downloads (zip + `figtional setup`, or the `.mcpb` Claude Desktop extension) or a clone; MCP clients run `node <folder>/lib/figtional.mjs mcp …` (download) or `node <repo>/packages/cli/dist/bin.js mcp …` (clone).
 - Ports: the asset server for `get_design_context` uses 3845 (like Figma's desktop server, falling back to a free port); the viewer defaults to 3846.
 - When behaviour or setup changes, update README.md (quick start, client configs, limitations) and PLAN.md's status table in the same commit. The README screenshot (`docs/images/viewer.png`) is the viewer showing `references/Responsive example` at 1440×860.
 - Rendering changes: run `npx vitest run packages/fig-render` (with `FIGTIONAL_RENDER_OUT=<dir>` to get renders + diff images, and `FIGTIONAL_BIG_TESTS=1` for Futurice). Don't loosen thresholds to make a regression pass.
