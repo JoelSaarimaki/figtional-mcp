@@ -435,13 +435,17 @@ export class EditSession {
     const mode = n.textAutoResize ?? 'NONE';
     n.size ??= { x: 0, y: 0 };
     let m: ReturnType<typeof measureText> | undefined;
+    // With truncation, the box stops at maxLines lines.
+    const maxLines = n.textTruncation === 'ENDING' && n.maxLines ? n.maxLines : Infinity;
+    const height = (mm: ReturnType<typeof measureText>) =>
+      Math.round(mm.lineHeight) * Math.max(1, Math.min(mm.lines.length, maxLines));
     if (mode === 'WIDTH_AND_HEIGHT') {
       m = measureText(chars, style);
       n.size.x = Math.ceil(m.width);
-      n.size.y = m.height;
+      n.size.y = height(m);
     } else if (mode === 'HEIGHT') {
       m = measureText(chars, style, n.size.x);
-      n.size.y = m.height;
+      n.size.y = height(m);
     }
     if (m?.substituted && chars) this.fontFallbacks.set(`${style.family} ${style.style}`, m.fontFamily);
     delete n.derivedTextData;

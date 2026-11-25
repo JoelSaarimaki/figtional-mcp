@@ -13,7 +13,7 @@
 import { createHash } from 'node:crypto';
 import { type NodeChange, guidToString } from '@figtional/fig-format';
 import type { EditSession, FigDocument } from '@figtional/fig-model';
-import { FigtionalUnsupported } from './unsupported.js';
+import { layoutGridFromPlugin, layoutGridToPlugin } from './plugin-values.js';
 
 export type StyleType = 'PAINT' | 'TEXT' | 'EFFECT' | 'GRID';
 
@@ -283,9 +283,11 @@ export function createStyleApi(deps: StyleDeps) {
     } else if (type === 'GRID') {
       Object.defineProperty(base, 'layoutGrids', {
         enumerable: true,
-        get: () => Object.freeze(structuredClone(get().layoutGrids ?? [])),
-        set: () => {
-          throw new FigtionalUnsupported('setting GridStyle.layoutGrids');
+        get: () => Object.freeze((get().layoutGrids ?? []).map(layoutGridToPlugin)),
+        set: (v: any[]) => {
+          requireLocal(get(), 'layoutGrids');
+          if (!Array.isArray(v)) throw new Error('layoutGrids must be an array');
+          edit(get(), { layoutGrids: v.map((g, i) => layoutGridFromPlugin(g, `[${i}]`)) });
         },
       });
     } else {

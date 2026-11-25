@@ -99,6 +99,32 @@ export function paintMembers(rt: PluginRuntime) {
     get cornerRadius(): any {
       return this._d.rectangleCornerRadiiIndependent ? MIXED : (this._d.cornerRadius ?? 0);
     }
+    get strokeCap(): string {
+      return this._d.strokeCap ?? 'NONE';
+    }
+    set strokeCap(v: string) {
+      const caps = [
+        'NONE',
+        'ROUND',
+        'SQUARE',
+        'ARROW_LINES',
+        'ARROW_EQUILATERAL',
+        'DIAMOND_FILLED',
+        'TRIANGLE_FILLED',
+        'CIRCLE_FILLED',
+      ];
+      if (!caps.includes(v)) throw new Error(`Invalid strokeCap "${v}"`);
+      editRaw(this.id, { strokeCap: v });
+      session.invalidateGeometry(session.raw(this.id));
+    }
+    get cornerSmoothing(): number {
+      return this._d.cornerSmoothing ?? 0;
+    }
+    set cornerSmoothing(v: number) {
+      if (typeof v !== 'number' || v < 0 || v > 1) throw new Error('cornerSmoothing must be between 0 and 1');
+      editRaw(this.id, { cornerSmoothing: v });
+      session.invalidateGeometry(session.raw(this.id));
+    }
     set cornerRadius(v: number) {
       editRaw(this.id, {
         cornerRadius: Number(v),

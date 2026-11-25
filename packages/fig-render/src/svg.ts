@@ -464,7 +464,26 @@ function textXml(b: SvgBuilder, n: NodeChange): string {
   );
   b.warnings.add('text without stored layout drawn with installed fonts');
   if (m.substituted) b.warnings.add(fontWarning(`${family} ${style}`, m.fontFamily));
+  let truncatedAt = -1;
   const lineH = Math.round(m.lineHeight);
+  // Truncation (textTruncation ENDING): stop at maxLines, or at the box's height, and end the
+  // last visible line with an ellipsis.
+  if (n.textTruncation === 'ENDING') {
+    const fit = Math.max(1, Math.floor((h + 0.01) / Math.max(lineH, 1)));
+    const keep = Math.min(m.lines.length, n.maxLines ?? fit, n.textAutoResize === 'NONE' ? fit : Infinity);
+    if (keep < m.lines.length) {
+      const last = m.lines[keep - 1]!;
+      let text = last.text;
+      const base = { family, style, size, letterSpacing: n.letterSpacing };
+      while (text && measureText(text.trimEnd() + '…', base).width > w) text = text.slice(0, -1);
+      m.lines.length = keep;
+      m.lines[keep - 1] = {
+        text: text.trimEnd() + '…',
+        width: measureText(text.trimEnd() + '…', base).width,
+      };
+      truncatedAt = chars.indexOf(last.text);
+    }
+  }
   const total = lineH * m.lines.length;
   const vAlign = n.textAlignVertical ?? 'TOP';
   const top = vAlign === 'CENTER' ? (h - total) / 2 : vAlign === 'BOTTOM' ? h - total : 0;
@@ -485,16 +504,19 @@ function textXml(b: SvgBuilder, n: NodeChange): string {
   let cursor = 0;
   for (let li = 0; li < m.lines.length; li++) {
     const line = m.lines[li]!;
-    const found = chars.indexOf(line.text, cursor);
+    // The truncated last line ends with "…", which isn't in the characters: take its styles from
+    // where the line started.
+    const found =
+      li === m.lines.length - 1 && truncatedAt >= 0 ? truncatedAt : chars.indexOf(line.text, cursor);
     const start = found >= 0 ? found : cursor;
     cursor = start + line.text.length;
     // Runs of characters with the same style.
     const segs: { text: string; st: ReturnType<typeof runStyle> }[] = [];
-    for (let i = start; i < start + line.text.length; i++) {
-      const st = runStyle(i);
+    for (let i = 0; i < line.text.length; i++) {
+      const st = runStyle(Math.min(start + i, chars.length - 1));
       const last = segs[segs.length - 1];
-      if (last && JSON.stringify(last.st) === JSON.stringify(st)) last.text += chars[i];
-      else segs.push({ text: chars[i]!, st });
+      if (last && JSON.stringify(last.st) === JSON.stringify(st)) last.text += line.text[i];
+      else segs.push({ text: line.text[i]!, st });
     }
     const widths = segs.map((sg) => measureText(sg.text, sg.st).width);
     const lineWidth = widths.reduce((a, c) => a + c, 0);

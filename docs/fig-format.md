@@ -134,7 +134,10 @@ Sizes: Playground 33 nodes / 151 blobs; TTRPG stuff 4,378 / 1,043; Futurice.com 
 - `vectorData: { vectorNetworkBlob, normalizedSize }` for VECTOR, BRUSH and shapes.
 - Constraints: `horizontalConstraint`, `verticalConstraint`, `proportionsConstrained`.
 - `frameMaskDisabled: false` means the frame **clips its content**.
-- `exportSettings`, `editInfo` (user id + timestamps), `pluginData`.
+- `exportSettings`, `editInfo` (user id + timestamps).
+- **Plugin data** (Futurice): `pluginData: [{ pluginID, value, key }]`. Shared plugin data appears with an empty `pluginID` and the namespace prefixed to the key (`tokens-fill`, `tokens-hash` from the Tokens plugin's `tokens` namespace; *assumed* from that pattern). **Figtional writes** shared data that way and its own plugin data under the plugin id `figma-mcp-use-figma` (Figma MCP's real id isn't known).
+- **Layout grids** (`layoutGrids` on frames, 261 in Futurice): `{ type: MIN | CENTER | STRETCH | MAX (alignment), axis: X (columns) | Y (rows), visible, numSections, offset, sectionSize, gutterSize, color, pattern: STRIPES | GRID }`.
+- **Text truncation** (TTRPG, Futurice): `textTruncation: DISABLED | ENDING` and `maxLines`.
 
 ## 5. Paints, effects and images, verified
 

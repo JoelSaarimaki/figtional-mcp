@@ -4,7 +4,17 @@ import { FigtionalUnsupported } from './unsupported.js';
 import { NodeMembers, type PluginRuntime } from './plugin-runtime.js';
 
 export function textMembers(rt: PluginRuntime) {
-  const { detachStyle, doc, editRaw, isFontLoaded, requireFonts, session, setTextProperty, typeError } = rt;
+  const {
+    detachStyle,
+    doc,
+    editRaw,
+    isFontLoaded,
+    requireFonts,
+    scene,
+    session,
+    setTextProperty,
+    typeError,
+  } = rt;
   return class TextMembers extends NodeMembers {
     // ------------------------------------------------ text
     requireText(prop: string) {
@@ -180,6 +190,33 @@ export function textMembers(rt: PluginRuntime) {
       requireFonts(this._d);
       editRaw(this.id, { textDecoration: v });
       detachStyle(this.id, 'styleIdForText');
+    }
+    get textTruncation(): string {
+      this.requireText('textTruncation');
+      return this._d.textTruncation ?? 'DISABLED';
+    }
+    set textTruncation(v: string) {
+      this.requireText('textTruncation');
+      if (!['DISABLED', 'ENDING'].includes(v)) throw new Error(`Invalid textTruncation "${v}"`);
+      requireFonts(this._d);
+      editRaw(this.id, { textTruncation: v }, { text: true });
+    }
+    get maxLines(): number | null {
+      this.requireText('maxLines');
+      return this._d.maxLines ?? null;
+    }
+    set maxLines(v: number | null) {
+      this.requireText('maxLines');
+      requireFonts(this._d);
+      if (v === null) {
+        if (scene(this.id).isInstanceSublayer)
+          throw new FigtionalUnsupported('clearing maxLines inside an instance');
+        delete session.raw(this.id).maxLines;
+        session.markText(this.id);
+        return;
+      }
+      if (!Number.isInteger(v) || v < 1) throw new Error('maxLines must be a positive integer or null');
+      editRaw(this.id, { maxLines: v }, { text: true });
     }
     get hasMissingFont() {
       return false;

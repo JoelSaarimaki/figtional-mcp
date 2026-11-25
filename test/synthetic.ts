@@ -120,11 +120,18 @@ message NodeChange {
   float paragraphIndent = 97; VectorData vectorData = 98; StrokeCap strokeCap = 99; float[] dashPattern = 100;
   bool borderStrokeWeightsIndependent = 101; float borderTopWeight = 102; float borderRightWeight = 103;
   float borderBottomWeight = 104; float borderLeftWeight = 105; bool resizeToFit = 106;
-  BooleanOperation booleanOperation = 107;
+  BooleanOperation booleanOperation = 107; float cornerSmoothing = 108; int maxLines = 109;
+  TextTruncation textTruncation = 110; LayoutGrid[] layoutGrids = 111; PluginData[] pluginData = 112;
 }
 message VectorData { uint vectorNetworkBlob = 1; Vector normalizedSize = 2; }
-enum StrokeCap { NONE = 0; ROUND = 1; SQUARE = 2; }
+enum StrokeCap { NONE = 0; ROUND = 1; SQUARE = 2; ARROW_LINES = 3; ARROW_EQUILATERAL = 4; DIAMOND_FILLED = 5; TRIANGLE_FILLED = 6; CIRCLE_FILLED = 7; }
 enum BooleanOperation { UNION = 0; INTERSECT = 1; SUBTRACT = 2; XOR = 3; }
+enum TextTruncation { DISABLED = 0; ENDING = 1; }
+enum LayoutGridType { MIN = 0; CENTER = 1; STRETCH = 2; MAX = 3; }
+enum Axis { X = 0; Y = 1; }
+enum LayoutGridPattern { STRIPES = 0; GRID = 1; }
+message LayoutGrid { LayoutGridType type = 1; Axis axis = 2; bool visible = 3; int numSections = 4; float offset = 5; float sectionSize = 6; float gutterSize = 7; Color color = 8; LayoutGridPattern pattern = 9; }
+message PluginData { string pluginID = 1; string value = 2; string key = 3; }
 enum StyleType { NONE = 0; FILL = 1; STROKE = 2; TEXT = 3; EFFECT = 4; EXPORT = 5; GRID = 6; }
 enum TextCase { ORIGINAL = 0; UPPER = 1; LOWER = 2; TITLE = 3; SMALL_CAPS = 4; SMALL_CAPS_FORCED = 5; }
 enum TextDecoration { NONE = 0; UNDERLINE = 1; STRIKETHROUGH = 2; }

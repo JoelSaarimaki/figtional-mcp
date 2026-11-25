@@ -67,6 +67,13 @@ import { vectorsMembers } from './node-vectors.js';
 
 export { FigtionalUnsupported };
 
+/** Plugin id under which use_figma's own plugin data is stored (Figma MCP's id isn't known). */
+const PLUGIN_ID = 'figma-mcp-use-figma';
+const checkNamespace = (ns: string) => {
+  if (typeof ns !== 'string' || !/^[A-Za-z0-9_.]{3,}$/.test(ns))
+    throw new Error('Invalid namespace: it must be at least 3 characters of letters, digits, _ and .');
+};
+
 export interface ApiContext {
   doc: FigDocument;
   session: EditSession;
@@ -377,17 +384,49 @@ export function createFigmaApi(ctx: ApiContext) {
     toString() {
       return `[Node ${this.id}]`;
     }
-    getPluginData() {
-      return '';
+    // Plugin data is stored as { pluginID, key, value } (verified). Shared plugin data uses an
+    // empty pluginID and "<namespace>-<key>" (assumed from Futurice: "tokens-fill" etc.).
+    private pluginEntries(): any[] {
+      return doc.getNodeById(this.id)?.data.pluginData ?? [];
     }
-    setPluginData() {
-      throw new FigtionalUnsupported('setPluginData');
+    private writePluginData(pluginID: string, key: string, value: string) {
+      if (scene(this.id).isInstanceSublayer)
+        throw new FigtionalUnsupported('plugin data on a layer inside an instance');
+      const raw = session.raw(this.id);
+      const list = (raw.pluginData ?? []).filter((e: any) => !(e.pluginID === pluginID && e.key === key));
+      if (value !== '') list.push({ pluginID, value, key });
+      if (list.length) raw.pluginData = list;
+      else delete raw.pluginData;
+      session.markDirty(this.id);
     }
-    getSharedPluginData() {
-      return '';
+    getPluginData(key: string) {
+      return this.pluginEntries().find((e) => e.pluginID === PLUGIN_ID && e.key === String(key))?.value ?? '';
     }
-    setSharedPluginData() {
-      throw new FigtionalUnsupported('setSharedPluginData');
+    setPluginData(key: string, value: string) {
+      if (typeof value !== 'string') throw new Error('setPluginData value must be a string');
+      this.writePluginData(PLUGIN_ID, String(key), value);
+    }
+    getPluginDataKeys() {
+      return this.pluginEntries()
+        .filter((e) => e.pluginID === PLUGIN_ID)
+        .map((e) => e.key);
+    }
+    getSharedPluginData(namespace: string, key: string) {
+      checkNamespace(namespace);
+      const k = `${namespace}-${key}`;
+      return this.pluginEntries().find((e) => e.pluginID === '' && e.key === k)?.value ?? '';
+    }
+    setSharedPluginData(namespace: string, key: string, value: string) {
+      checkNamespace(namespace);
+      if (typeof value !== 'string') throw new Error('setSharedPluginData value must be a string');
+      this.writePluginData('', `${namespace}-${key}`, value);
+    }
+    getSharedPluginDataKeys(namespace: string) {
+      checkNamespace(namespace);
+      const prefix = `${namespace}-`;
+      return this.pluginEntries()
+        .filter((e) => e.pluginID === '' && e.key.startsWith(prefix))
+        .map((e) => e.key.slice(prefix.length));
     }
     query(selector: string) {
       return makeQueryResult(querySelector(this, String(selector)));

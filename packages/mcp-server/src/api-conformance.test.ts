@@ -24,6 +24,7 @@ const INTERNAL = new Set([
   'minMax',
   'modeCollection',
   'modeEntriesWithout',
+  'pluginEntries',
   'requireFrame',
   'requireModes',
   'requireText',
@@ -33,6 +34,7 @@ const INTERNAL = new Set([
   'setMinMax',
   'setRange',
   'setSizing',
+  'writePluginData',
   'sizing',
 ]);
 const NODE_TYPES = [
