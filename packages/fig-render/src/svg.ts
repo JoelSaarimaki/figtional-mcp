@@ -9,6 +9,7 @@ import {
   type VectorNetwork,
   decodePathCommands,
   decodeVectorNetwork,
+  guidToString,
   pathCommandsToSvg,
 } from '@figtional/fig-format';
 import {
@@ -24,6 +25,10 @@ import {
   styleWeight,
   applyTextCase,
   textRunPath,
+  outlineOf,
+  subpathsToPathData,
+  transformSubpaths,
+  IDENTITY,
 } from '@figtional/fig-model';
 
 export interface RenderOptions {
@@ -294,6 +299,13 @@ function shapePaths(b: SvgBuilder, n: NodeChange): { d: string; rule: string }[]
       rule: r.windingRule === 'ODD' ? 'evenodd' : 'nonzero',
     }));
   }
+  // Shapes Figtional created without geometry: arcs, polygons and stars from their parameters.
+  if ((n.type === 'ELLIPSE' && n.arcData) || n.type === 'REGULAR_POLYGON' || n.type === 'STAR') {
+    return outlineOf(b.doc, n).map((o) => ({
+      d: subpathsToPathData(o.paths),
+      rule: o.rule === 'ODD' ? 'evenodd' : 'nonzero',
+    }));
+  }
   if (n.type === 'ELLIPSE') return [{ d: ellipsePath(w, h), rule: 'nonzero' }];
   if (['FRAME', 'SYMBOL', 'INSTANCE', 'ROUNDED_RECTANGLE', 'RECTANGLE', 'SECTION'].includes(n.type ?? '')) {
     return w > 0 && h > 0 ? [{ d: rectPath(n, w, h), rule: 'nonzero' }] : [];
@@ -459,7 +471,26 @@ function textXml(b: SvgBuilder, n: NodeChange): string {
   );
   b.warnings.add('text without stored layout drawn with installed fonts');
   if (m.substituted) b.warnings.add(fontWarning(`${family} ${style}`, m.fontFamily));
+  let truncatedAt = -1;
   const lineH = Math.round(m.lineHeight);
+  // Truncation (textTruncation ENDING): stop at maxLines, or at the box's height, and end the
+  // last visible line with an ellipsis.
+  if (n.textTruncation === 'ENDING') {
+    const fit = Math.max(1, Math.floor((h + 0.01) / Math.max(lineH, 1)));
+    const keep = Math.min(m.lines.length, n.maxLines ?? fit, n.textAutoResize === 'NONE' ? fit : Infinity);
+    if (keep < m.lines.length) {
+      const last = m.lines[keep - 1]!;
+      let text = last.text;
+      const base = { family, style, size, letterSpacing: n.letterSpacing };
+      while (text && measureText(text.trimEnd() + '…', base).width > w) text = text.slice(0, -1);
+      m.lines.length = keep;
+      m.lines[keep - 1] = {
+        text: text.trimEnd() + '…',
+        width: measureText(text.trimEnd() + '…', base).width,
+      };
+      truncatedAt = chars.indexOf(last.text);
+    }
+  }
   const total = lineH * m.lines.length;
   const vAlign = n.textAlignVertical ?? 'TOP';
   const top = vAlign === 'CENTER' ? (h - total) / 2 : vAlign === 'BOTTOM' ? h - total : 0;
@@ -480,16 +511,19 @@ function textXml(b: SvgBuilder, n: NodeChange): string {
   let cursor = 0;
   for (let li = 0; li < m.lines.length; li++) {
     const line = m.lines[li]!;
-    const found = chars.indexOf(line.text, cursor);
+    // The truncated last line ends with "…", which isn't in the characters: take its styles from
+    // where the line started.
+    const found =
+      li === m.lines.length - 1 && truncatedAt >= 0 ? truncatedAt : chars.indexOf(line.text, cursor);
     const start = found >= 0 ? found : cursor;
     cursor = start + line.text.length;
     // Runs of characters with the same style.
     const segs: { text: string; st: ReturnType<typeof runStyle> }[] = [];
-    for (let i = start; i < start + line.text.length; i++) {
-      const st = runStyle(i);
+    for (let i = 0; i < line.text.length; i++) {
+      const st = runStyle(Math.min(start + i, chars.length - 1));
       const last = segs[segs.length - 1];
-      if (last && JSON.stringify(last.st) === JSON.stringify(st)) last.text += chars[i];
-      else segs.push({ text: chars[i]!, st });
+      if (last && JSON.stringify(last.st) === JSON.stringify(st)) last.text += line.text[i];
+      else segs.push({ text: line.text[i]!, st });
     }
     const widths = segs.map((sg) => measureText(sg.text, sg.st).width);
     const lineWidth = widths.reduce((a, c) => a + c, 0);
@@ -625,6 +659,70 @@ function renderNode(b: SvgBuilder, node: SceneNode, transform: Matrix): string {
   }
 }
 
+/**
+ * Fill of a boolean operation that has no stored geometry, built from its operands' outlines:
+ * UNION draws them all, EXCLUDE uses the even-odd rule, SUBTRACT masks the first operand with the
+ * others and INTERSECT nests one mask per operand. Strokes of such a result are not drawn.
+ */
+function booleanPaint(b: SvgBuilder, n: NodeChange): string {
+  const op = n.booleanOperation ?? 'UNION';
+  const operands = b.doc
+    .rawChildren(guidToString(n.guid))
+    .filter((c) => c.visible !== false)
+    .map((c) =>
+      outlineOf(b.doc, c).map((o) => ({
+        d: subpathsToPathData(transformSubpaths(o.paths, c.transform ?? IDENTITY)),
+        rule: o.rule,
+      })),
+    )
+    .filter((o) => o.length);
+  if (!operands.length) return '';
+  const w = n.size?.x ?? 0;
+  const h = n.size?.y ?? 0;
+  const els = (os: { d: string; rule: string }[], fill: string) =>
+    os
+      .map((o) => `<path d="${o.d}" fill="${fill}"${o.rule === 'ODD' ? ' fill-rule="evenodd"' : ''}/>`)
+      .join('');
+  const mask = (content: string) => {
+    const id = b.id('bm');
+    // The node's bounds contain the result (resvg drops masks over huge areas).
+    b.def(
+      `<mask id="${id}" maskUnits="userSpaceOnUse" x="-1" y="-1" width="${fmt(w + 2)}" height="${fmt(h + 2)}">${content}</mask>`,
+    );
+    return id;
+  };
+  const out: string[] = [];
+  for (const p of (n.fillPaints ?? []).filter((x: any) => x.visible !== false)) {
+    const f = b.paintFill(p, w, h);
+    if (!f) continue;
+    const op1 = f.opacity < 1 ? ` opacity="${fmt(f.opacity)}"` : '';
+    const area = `<rect x="-1" y="-1" width="${fmt(w + 2)}" height="${fmt(h + 2)}" fill="${f.fill}"/>`;
+    if (op === 'UNION') out.push(`<g${op1}>${operands.map((o) => els(o, f.fill)).join('')}</g>`);
+    else if (op === 'XOR' || op === 'EXCLUDE')
+      out.push(
+        `<path d="${operands
+          .flat()
+          .map((o) => o.d)
+          .join('')}" fill="${f.fill}" fill-rule="evenodd"${op1}/>`,
+      );
+    else if (op === 'SUBTRACT') {
+      const id = mask(
+        els(operands[0]!, '#fff') +
+          operands
+            .slice(1)
+            .map((o) => els(o, '#000'))
+            .join(''),
+      );
+      out.push(`<g mask="url(#${id})"${op1}>${area}</g>`);
+    } else {
+      let g = area;
+      for (const o of operands) g = `<g mask="url(#${mask(els(o, '#fff'))})">${g}</g>`;
+      out.push(op1 ? `<g${op1}>${g}</g>` : g);
+    }
+  }
+  return out.join('');
+}
+
 function renderNodeInner(b: SvgBuilder, node: SceneNode, transform: Matrix): string {
   const n = node.data;
   if (!node.visible) return '';
@@ -642,9 +740,11 @@ function renderNodeInner(b: SvgBuilder, node: SceneNode, transform: Matrix): str
     );
   } else {
     inner.push(ownPaint(b, n));
+    // A boolean operation without stored geometry (created by Figtional) is drawn from its operands.
+    if (n.type === 'BOOLEAN_OPERATION' && !(n.fillGeometry ?? []).length) inner.push(booleanPaint(b, n));
     // Boolean operation children are operands, already merged into its geometry.
     if (n.type !== 'BOOLEAN_OPERATION') {
-      const kids = renderChildren(b, node);
+      const kids = renderChildren(b, node, clipsContent(n) ? node.absoluteBoundingBox : undefined);
       if (kids) {
         if (clipsContent(n)) {
           const shapes = shapePaths(b, { ...n, fillGeometry: n.fillGeometry });
@@ -672,7 +772,12 @@ function renderNodeInner(b: SvgBuilder, node: SceneNode, transform: Matrix): str
 }
 
 /** Children in order, applying masks (a `mask: true` layer masks the siblings above it). */
-function renderChildren(b: SvgBuilder, node: SceneNode): string {
+/**
+ * Draws a node's children. With `clip` (a clipping frame's absolute bounds), children whose drawn
+ * area misses it are left out: they would be invisible anyway, and resvg panics (aborting the
+ * process) on a clip group whose content lies entirely outside the clip.
+ */
+function renderChildren(b: SvgBuilder, node: SceneNode, clip?: Rect): string {
   const out: string[] = [];
   let maskId: string | undefined;
   let masked: string[] = [];
@@ -692,6 +797,17 @@ function renderChildren(b: SvgBuilder, node: SceneNode): string {
         `<mask id="${maskId}" maskUnits="userSpaceOnUse" x="-100000" y="-100000" width="200000" height="200000"${alpha}><g${matrixAttr(c.relativeTransform)}>${c.data.maskType === 'ALPHA' || c.data.maskType === 'LUMINANCE' ? renderNode(b, c, IDENTITY_M) : shape}</g></mask>`,
       );
       continue;
+    }
+    if (clip && c.visible) {
+      const r = renderBounds(c);
+      const m = 1 + (c.data.strokeWeight ?? 0);
+      if (
+        r.x - m >= clip.x + clip.width ||
+        r.y - m >= clip.y + clip.height ||
+        r.x + r.width + m <= clip.x ||
+        r.y + r.height + m <= clip.y
+      )
+        continue;
     }
     const xml = renderNode(b, c, c.relativeTransform);
     if (maskId) masked.push(xml);

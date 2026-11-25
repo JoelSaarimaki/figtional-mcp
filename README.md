@@ -12,7 +12,7 @@ It also includes a read-only **web viewer** that shows `.fig` files the way Figm
 
 ![The Figtional viewer showing the "Responsive example" file: layer tree on the left, four mobile and tablet screens on the canvas with one card selected, and the inspect panel with its auto layout, fill and prototype settings on the right](docs/images/viewer.png)
 
-> **Status:** version 0.2.1, early development, usable for testing. See [CHANGELOG.md](CHANGELOG.md) for what's in each version. All of Figma MCP's read tools work, the viewer works, and `use_figma` supports a growing subset of the Plugin API for editing (see [Limitations](#limitations)). The roadmap is in [PLAN.md](PLAN.md).
+> **Status:** version 0.3.0, early development, usable for testing. See [CHANGELOG.md](CHANGELOG.md) for what's in each version. All of Figma MCP's read tools work, the viewer works, and `use_figma` supports a growing subset of the Plugin API for editing (see [Limitations](#limitations)). The roadmap is in [PLAN.md](PLAN.md).
 
 ## Contents
 
@@ -104,7 +104,7 @@ Figtional is an MCP server that talks over **stdio**: the AI client starts it as
 
 `figtional setup --print <folder>` prints the exact command and JSON for your computer without changing anything. The examples below use these placeholders; replace them with your own paths:
 
-- `/path/to/figtional-mcp/packages/cli/dist/bin.js` is the script (see above), e.g. `C:/Users/me/Documents/figtional-0.2.1/lib/figtional.mjs`.
+- `/path/to/figtional-mcp/packages/cli/dist/bin.js` is the script (see above), e.g. `C:/Users/me/Documents/figtional-0.3.0/lib/figtional.mjs`.
 - `/path/to/designs` is the folder with your `.fig` files.
 
 > **Keep the real Figma MCP server switched off** while you practise with Figtional, so the agent can't reach your Figma account through it. Both servers use the same tool names, so with both connected the agent could pick either.
@@ -258,9 +258,10 @@ return { id: card.id };
 - **Laid out like Figma.** Text is measured with your installed fonts and auto layout is recalculated immediately, so sizes read in the same script, screenshots and the viewer show the result. Figma recalculates text layout itself when you import the file.
 - **Supported:**
   - frames, auto layout and layout sizing,
-  - rectangles, ellipses and lines,
-  - text (content, fonts, sizes, ranges),
-  - fills, strokes, effects and corner radii,
+  - rectangles, ellipses (with arcs and rings), lines, polygons and stars,
+  - groups (`figma.group`, `ungroup`), boolean operations (`union`, `subtract`, `intersect`, `exclude`) and `flatten`,
+  - text (content, fonts, sizes, ranges, truncation with `maxLines`),
+  - fills, strokes (caps, dashes), effects, corner radii and smoothing, layout grids,
   - pages,
   - variables (collections, modes, values, binding to fills and spacing) and explicit modes per frame (e.g. light and dark),
   - paint, text, effect and grid styles: creating, applying (`set*StyleIdAsync`), editing and removing,
@@ -268,7 +269,9 @@ return { id: card.id };
   - SVG import (`figma.createNodeFromSvg`) and vectors (`createVector`, `vectorPaths`, `vectorNetwork`),
   - components and instances, component properties (text, boolean, instance swap), variants (`combineAsVariants`, `setProperties`) and `detachInstance`,
   - text, visibility and fill changes inside instances,
-  - `node.query()`, `node.set()` and `node.screenshot()`.
+  - instance `overrides`, `resetOverrides()` and swapping `mainComponent`,
+  - plugin data (`setPluginData`, `setSharedPluginData`),
+  - `exportAsync` (PNG, SVG), `getCSSAsync`, `node.query()`, `node.set()` and `node.screenshot()`.
 
   Figma's rules and error messages are copied, for example "load fonts before editing text".
 - **Unsupported calls** fail with `NotSupportedInFigtional: …`. That's a Figtional limitation, not necessarily a Figma one.
@@ -301,7 +304,7 @@ figtional help <command>          # help for one command (or: figtional <command
 
 ## Limitations
 
-- **Plugin API subset.** `use_figma` supports a subset of the Plugin API. Not supported yet: prototype interactions, plugin data, editing grid styles, and SVG text, images, gradients, masks and filters in `createNodeFromSvg` (SVG groups are flattened). `createImageAsync` only accepts `data:` URLs, because Figtional makes no network requests.
+- **Plugin API subset.** `use_figma` supports a subset of the Plugin API. Not supported yet: prototype interactions, grid auto layout (`layoutMode = 'GRID'`), JPG/PDF export, `isExposedInstance`, FigJam and Slides APIs, and SVG text, images, gradients, masks and filters in `createNodeFromSvg` (SVG groups are flattened). Boolean operations Figtional creates are drawn from their operands; their exact outline is computed by Figma on import. `createImageAsync` only accepts `data:` URLs, because Figtional makes no network requests.
 - **Not a sandbox.** The `use_figma` runtime (Node's `vm`) keeps scripts away from `require`, files and the network by convention, but it is not a security boundary. The access boundary is the file scope you start Figtional with.
 - **Rendering.** Screenshots and the viewer are visually faithful but not pixel-identical to Figma. Background blur isn't drawn, and angular/diamond gradients are approximated.
 - **Fonts.** Text that hasn't been edited is drawn exactly as Figma laid it out. Edited or new text uses **fonts installed on your machine**. If a font is missing, Figtional falls back to a basic font for measuring and display, but the file keeps the original font, so Figma shows it correctly after import. Because the fallback has different widths, sizes of edited text (and auto layout around it) can differ by a few pixels in Figma; `use_figma` and the screenshot tools add a "Figtional limitation" note whenever this happened.

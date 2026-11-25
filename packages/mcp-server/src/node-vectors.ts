@@ -7,6 +7,70 @@ import { NodeMembers, type PluginRuntime } from './plugin-runtime.js';
 export function vectorsMembers(rt: PluginRuntime) {
   const { dynamicPage, editRaw, networkOf, session, typeError, vectorFields } = rt;
   return class VectorsMembers extends NodeMembers {
+    // ------------------------------------------------ polygons, stars, arcs
+    get pointCount(): number {
+      if (this.type !== 'POLYGON' && this.type !== 'STAR') throw typeError('pointCount', this.type);
+      return this._d.count ?? (this.type === 'STAR' ? 5 : 3);
+    }
+    set pointCount(v: number) {
+      if (this.type !== 'POLYGON' && this.type !== 'STAR') throw typeError('pointCount', this.type);
+      if (!Number.isInteger(v) || v < 3) throw new Error('pointCount must be an integer of at least 3');
+      editRaw(this.id, { count: v });
+      session.invalidateGeometry(session.raw(this.id));
+    }
+    get innerRadius(): number {
+      if (this.type !== 'STAR') throw typeError('innerRadius', this.type);
+      return this._d.starInnerScale ?? 0.382;
+    }
+    set innerRadius(v: number) {
+      if (this.type !== 'STAR') throw typeError('innerRadius', this.type);
+      if (typeof v !== 'number' || v < 0 || v > 1) throw new Error('innerRadius must be between 0 and 1');
+      editRaw(this.id, { starInnerScale: v });
+      session.invalidateGeometry(session.raw(this.id));
+    }
+    get arcData() {
+      if (this.type !== 'ELLIPSE') throw typeError('arcData', this.type);
+      const a = this._d.arcData ?? {};
+      return {
+        startingAngle: a.startingAngle ?? 0,
+        endingAngle: a.endingAngle ?? 2 * Math.PI,
+        innerRadius: a.innerRadius ?? 0,
+      };
+    }
+    set arcData(v: { startingAngle: number; endingAngle: number; innerRadius: number }) {
+      if (this.type !== 'ELLIPSE') throw typeError('arcData', this.type);
+      if (
+        typeof v?.startingAngle !== 'number' ||
+        typeof v?.endingAngle !== 'number' ||
+        typeof v?.innerRadius !== 'number'
+      )
+        throw new Error('arcData must be { startingAngle, endingAngle, innerRadius }');
+      if (v.innerRadius < 0 || v.innerRadius > 1)
+        throw new Error('arcData.innerRadius must be between 0 and 1');
+      editRaw(this.id, {
+        arcData: { startingAngle: v.startingAngle, endingAngle: v.endingAngle, innerRadius: v.innerRadius },
+      });
+      session.invalidateGeometry(session.raw(this.id));
+    }
+
+    // ------------------------------------------------ boolean operations
+    get booleanOperation(): string {
+      if (this.type !== 'BOOLEAN_OPERATION') throw typeError('booleanOperation', this.type);
+      const op = this._d.booleanOperation ?? 'UNION';
+      return op === 'XOR' ? 'EXCLUDE' : op;
+    }
+    set booleanOperation(v: string) {
+      if (this.type !== 'BOOLEAN_OPERATION') throw typeError('booleanOperation', this.type);
+      if (!['UNION', 'INTERSECT', 'SUBTRACT', 'EXCLUDE'].includes(v))
+        throw new Error(`Invalid booleanOperation "${v}"`);
+      // A changed operation invalidates Figma's stored result.
+      editRaw(this.id, {
+        booleanOperation: v === 'EXCLUDE' ? 'XOR' : v,
+        fillGeometry: [],
+        strokeGeometry: [],
+      });
+    }
+
     // ------------------------------------------------ vectors
     requireVector(prop: string) {
       if (this.type !== 'VECTOR') throw typeError(prop, this.type);

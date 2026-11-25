@@ -6,6 +6,25 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 
 ## [Unreleased]
 
+## [0.3.0]
+
+### Added
+
+- `use_figma`: `figma.group()` and `figma.ungroup()`. Layers keep their place on the canvas, and groups stay fitted to their children when those move or resize, as in Figma.
+- `use_figma`: boolean operations (`figma.union`, `subtract`, `intersect`, `exclude`) and `figma.flatten`, plus `booleanOperation` on boolean nodes. Screenshots and the viewer draw the results; Figma recomputes their exact outlines on import.
+- `use_figma`: `node.exportAsync()` as PNG (with `SCALE`, `WIDTH` or `HEIGHT` constraints), `SVG` or `SVG_STRING`, and `node.getCSSAsync()` with the same CSS rules as `get_design_context`. JPG and PDF export are refused as Figtional limitations.
+- `use_figma`: `strokeCap`, `cornerSmoothing`, `layoutGrids` on frames and grid styles, `textTruncation` and `maxLines` (measured and drawn with an ellipsis), plugin data (`setPluginData`, `setSharedPluginData` and their getters and key lists), instance `overrides` and `resetOverrides()`, and setting `mainComponent`.
+- `use_figma`: `figma.createPolygon()` and `figma.createStar()` with `pointCount` and `innerRadius`, and `arcData` on ellipses (arcs, pie slices, rings), drawn by the viewer and screenshots.
+
+### Changed
+
+- `use_figma`: `appendChild` and `insertChild` keep the child's `x`/`y` relative to its new parent, as Figma does (its own skills: "Reparenting preserves relative x/y values"). Figtional used to keep the canvas position instead.
+
+### Fixed
+
+- Rendering a frame that clips its content, when all of that content lay outside the frame, crashed the process (a panic in the PNG renderer), taking down the MCP server or viewer. Such content is now left out before rendering.
+- `figma.group`, boolean operations and `flatten` now apply pending auto layout before reading positions.
+
 ## [0.2.1]
 
 ### Changed
@@ -103,7 +122,8 @@ First release.
 - **Web viewer** (`figtional serve`): page selector, layer tree, pan/zoom canvas, inspect panel, file info, prototype arrows and a basic Present mode. It reloads on file changes and only listens on `127.0.0.1`.
 - **CLI:** `mcp`, `serve`, `dump`, `inspect`, `validate` and per-command help.
 
-[Unreleased]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.2.1...development
+[Unreleased]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.3.0...development
+[0.3.0]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.4...v0.2.0
 [0.1.4]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.3...v0.1.4

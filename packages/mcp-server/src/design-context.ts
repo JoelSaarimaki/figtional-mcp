@@ -693,6 +693,17 @@ export async function designContext(
   };
 }
 
+/**
+ * CSS of one node as `node.getCSSAsync()` returns it (property → value), from the same rules as
+ * get_design_context. Images are referenced by their asset path without a running asset server.
+ */
+export function nodeCss(doc: FigDocument, fileKey: string, node: SceneNode): Record<string, string> {
+  const paths = { register: (key: string, ext: string) => `/assets/${key.replace(/[^\w-]/g, '_')}.${ext}` };
+  const b = new Builder(doc, fileKey, paths as unknown as AssetServer, '');
+  const el = b.build(node, node.parent, true);
+  return Object.fromEntries(el?.css ?? []);
+}
+
 /** The full tool response text, framed like Figma MCP's output. */
 export async function designContextText(
   doc: FigDocument,

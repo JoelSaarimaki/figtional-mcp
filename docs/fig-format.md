@@ -104,6 +104,8 @@ Sizes: Playground 33 nodes / 151 blobs; TTRPG stuff 4,378 / 1,043; Futurice.com 
 `DOCUMENT, CANVAS, FRAME, TEXT, ROUNDED_RECTANGLE, ELLIPSE, LINE, VECTOR, REGULAR_POLYGON, BOOLEAN_OPERATION, SECTION, SYMBOL, INSTANCE, BRUSH, VARIABLE_SET, VARIABLE`
 
 - **Groups** are `FRAME`s with `resizeToFit: true` (every "Group N" layer has it). Some resize-to-fit frames have fills, which groups can't, so `fig-model` treats a node as a group only when it also has no fills, strokes or auto layout (*assumed*). Groups have `frameMaskDisabled: false` yet don't clip in Figma (*assumed*).
+- **Group fields** (all 18 groups in TTRPG): `FRAME` with `resizeToFit: true`, `frameMaskDisabled: false`, `strokeWeight` 1, `strokeAlign` INSIDE, `strokeJoin` MITER and no fill field; size and position are the bounds of the children. **Figtional writes** groups this way and refits them (moving the group and shifting its children back) whenever a child changes, at the end of each `use_figma` call.
+- **Boolean operations** (Futurice: 44 UNION, 10 SUBTRACT): a `BOOLEAN_OPERATION` node with shape fields (`fillPaints`, stroke fields, `fillGeometry` of the result) and `booleanOperation`; its operands are its children, which keep their own fills (unused). The schema's `BooleanOperation` enum is `UNION`, `INTERSECT`, `SUBTRACT`, `XOR` (the Plugin API's `EXCLUDE`). The stored size is the result's bounds: for UNION the operands' bounds, for 4 of 10 SUBTRACTs smaller than the first operand. **Figtional writes** new boolean nodes without `fillGeometry` (Figma recomputes it: verified, capabilities import check, 0.2.1 + `87ddea4`), with the bottom-most layer's fill and stroke as in Figma, and bounds approximated per operation (SUBTRACT: first operand, INTERSECT: overlap of the operands' boxes). Its renderer draws them from the operands with SVG masks and fill rules.
 - `BRUSH` = brush/pencil strokes (`brushType`, `scatterStrokeSettings`).
 
 **Plugin API ↔ .fig names:**
@@ -132,7 +134,10 @@ Sizes: Playground 33 nodes / 151 blobs; TTRPG stuff 4,378 / 1,043; Futurice.com 
 - `vectorData: { vectorNetworkBlob, normalizedSize }` for VECTOR, BRUSH and shapes.
 - Constraints: `horizontalConstraint`, `verticalConstraint`, `proportionsConstrained`.
 - `frameMaskDisabled: false` means the frame **clips its content**.
-- `exportSettings`, `editInfo` (user id + timestamps), `pluginData`.
+- `exportSettings`, `editInfo` (user id + timestamps).
+- **Plugin data** (Futurice): `pluginData: [{ pluginID, value, key }]`. Shared plugin data appears with an empty `pluginID` and the namespace prefixed to the key (`tokens-fill`, `tokens-hash` from the Tokens plugin's `tokens` namespace; *assumed* from that pattern). **Figtional writes** shared data that way and its own plugin data under the plugin id `figma-mcp-use-figma` (Figma MCP's real id isn't known).
+- **Layout grids** (`layoutGrids` on frames, 261 in Futurice; shown as "layout guides" in Figma's current UI; Figtional's columns imported correctly, capabilities import check): `{ type: MIN | CENTER | STRETCH | MAX (alignment), axis: X (columns) | Y (rows), visible, numSections, offset, sectionSize, gutterSize, color, pattern: STRIPES | GRID }`.
+- **Text truncation** (TTRPG, Futurice): `textTruncation: DISABLED | ENDING` and `maxLines`.
 
 ## 5. Paints, effects and images, verified
 

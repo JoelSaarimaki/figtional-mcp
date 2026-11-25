@@ -2,6 +2,7 @@
 import { stackProps } from '@figtional/fig-model';
 import { FigtionalUnsupported } from './unsupported.js';
 import { NodeMembers, type PluginRuntime } from './plugin-runtime.js';
+import { layoutGridFromPlugin, layoutGridToPlugin } from './plugin-values.js';
 
 export function layoutMembers(rt: PluginRuntime) {
   const { FRAMELIKE, editRaw, requireFonts, scene, session, typeError } = rt;
@@ -151,6 +152,17 @@ export function layoutMembers(rt: PluginRuntime) {
     }
     set itemReverseZIndex(v: boolean) {
       editRaw(this.id, { stackReverseZIndex: !!v });
+    }
+
+    get layoutGrids() {
+      if (!FRAMELIKE.includes(this.type)) throw typeError('layoutGrids', this.type);
+      return Object.freeze((this._d.layoutGrids ?? []).map(layoutGridToPlugin));
+    }
+    set layoutGrids(v: any[]) {
+      if (!FRAMELIKE.includes(this.type)) throw typeError('layoutGrids', this.type);
+      if (!Array.isArray(v)) throw new Error('layoutGrids must be an array');
+      editRaw(this.id, { layoutGrids: v.map((g, i) => layoutGridFromPlugin(g, `[${i}]`)) });
+      if (!scene(this.id).isInstanceSublayer) delete session.raw(this.id).styleIdForGrid;
     }
 
     // ------------------------------------------------ layout as a child

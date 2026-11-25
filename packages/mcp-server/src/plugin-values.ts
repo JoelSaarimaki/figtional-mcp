@@ -266,3 +266,86 @@ export function parseColor(input: any, alpha: boolean) {
   }
   throw new Error(`Invalid color "${input}"`);
 }
+
+/**
+ * Layout grids: the file stores { type (alignment), axis, visible, numSections, offset,
+ * sectionSize, gutterSize, color, pattern: STRIPES | GRID } (verified in the references); the
+ * Plugin API uses { pattern: COLUMNS | ROWS | GRID, alignment, count, gutterSize, offset,
+ * sectionSize, visible, color }.
+ */
+export function layoutGridToPlugin(g: any): any {
+  const color = { r: g.color?.r ?? 1, g: g.color?.g ?? 0, b: g.color?.b ?? 0, a: g.color?.a ?? 0.1 };
+  const visible = g.visible !== false;
+  if (g.pattern === 'GRID') return { pattern: 'GRID', sectionSize: g.sectionSize ?? 10, visible, color };
+  const alignment = g.type ?? 'MIN';
+  const out: any = {
+    pattern: g.axis === 'Y' ? 'ROWS' : 'COLUMNS',
+    alignment,
+    gutterSize: g.gutterSize ?? 0,
+    count: g.numSections ?? 1,
+    visible,
+    color,
+  };
+  if (alignment !== 'STRETCH') out.sectionSize = g.sectionSize ?? 0;
+  if (alignment !== 'CENTER') out.offset = g.offset ?? 0;
+  return out;
+}
+
+export function layoutGridFromPlugin(g: any, path: string): any {
+  if (!g || !['COLUMNS', 'ROWS', 'GRID'].includes(g.pattern))
+    throw new Error(`Invalid layout grid pattern at ${path}: expected "COLUMNS", "ROWS" or "GRID"`);
+  const c = g.color ?? { r: 1, g: 0, b: 0, a: 0.1 };
+  const color = { r: c.r ?? 0, g: c.g ?? 0, b: c.b ?? 0, a: c.a ?? 1 };
+  const visible = g.visible !== false;
+  if (g.pattern === 'GRID') {
+    return {
+      type: 'STRETCH',
+      axis: 'X',
+      visible,
+      numSections: 1,
+      offset: 0,
+      sectionSize: Number(g.sectionSize ?? 10),
+      gutterSize: 0,
+      color,
+      pattern: 'GRID',
+    };
+  }
+  const alignment = g.alignment ?? 'STRETCH';
+  if (!['MIN', 'MAX', 'CENTER', 'STRETCH'].includes(alignment))
+    throw new Error(`Invalid layout grid alignment at ${path}`);
+  return {
+    type: alignment,
+    axis: g.pattern === 'ROWS' ? 'Y' : 'X',
+    visible,
+    numSections: Number(g.count ?? 5),
+    offset: Number(g.offset ?? 0),
+    sectionSize: Number(g.sectionSize ?? 0),
+    gutterSize: Number(g.gutterSize ?? 20),
+    color,
+    pattern: 'STRIPES',
+  };
+}
+
+/** .fig override fields → Plugin API names, for `instance.overrides`. */
+export const OVERRIDE_FIELD_NAMES: Record<string, string> = {
+  fillPaints: 'fills',
+  strokePaints: 'strokes',
+  strokeWeight: 'strokeWeight',
+  textData: 'characters',
+  visible: 'visible',
+  opacity: 'opacity',
+  name: 'name',
+  fontSize: 'fontSize',
+  fontName: 'fontName',
+  effects: 'effects',
+  cornerRadius: 'cornerRadius',
+  stackHorizontalPadding: 'paddingLeft',
+  stackPaddingRight: 'paddingRight',
+  stackVerticalPadding: 'paddingTop',
+  stackPaddingBottom: 'paddingBottom',
+  stackSpacing: 'itemSpacing',
+  overriddenSymbolID: 'mainComponent',
+  styleIdForText: 'textStyleId',
+  styleIdForFill: 'fillStyleId',
+  layoutGrids: 'layoutGrids',
+};

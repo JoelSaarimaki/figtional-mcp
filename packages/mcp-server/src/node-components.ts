@@ -6,7 +6,7 @@ import {
   parseVariantName,
   propertyDefinitionMap,
 } from '@figtional/fig-model';
-import { IDENTITY_T, componentKeyOf, deepFreeze } from './plugin-values.js';
+import { IDENTITY_T, OVERRIDE_FIELD_NAMES, componentKeyOf, deepFreeze } from './plugin-values.js';
 import { FigtionalUnsupported } from './unsupported.js';
 import { NodeMembers, type PluginRuntime } from './plugin-runtime.js';
 
@@ -22,6 +22,43 @@ export function componentsMembers(rt: PluginRuntime) {
     get mainComponent() {
       if (this.type !== 'INSTANCE') throw typeError('mainComponent', this.type);
       return wrap(this._s.mainComponent);
+    }
+    set mainComponent(c: any) {
+      if (this.type !== 'INSTANCE') throw typeError('mainComponent', this.type);
+      this.swapComponent(c);
+    }
+    get overrides(): { id: string; overriddenFields: string[] }[] {
+      if (this.type !== 'INSTANCE') throw typeError('overrides', this.type);
+      const d = this._d;
+      const symbol = d.symbolData?.symbolID ? guidToString(d.symbolData.symbolID) : '';
+      const byId = new Map<string, Set<string>>();
+      const add = (id: string, f: string) => (byId.get(id) ?? byId.set(id, new Set()).get(id)!).add(f);
+      for (const o of d.symbolData?.symbolOverrides ?? []) {
+        const guids: any[] = o.guidPath?.guids ?? [];
+        const ids = guids.map((g) => guidToString(g));
+        const id = ids.length === 1 && ids[0] === symbol ? this.id : `I${this.id};${ids.join(';')}`;
+        for (const f of Object.keys(o)) {
+          const name = OVERRIDE_FIELD_NAMES[f];
+          if (name) add(id, name);
+          else if (f === 'size') {
+            add(id, 'width');
+            add(id, 'height');
+          }
+        }
+      }
+      if ((d.componentPropAssignments ?? []).length) add(this.id, 'componentProperties');
+      return [...byId].map(([id, fields]) => ({ id, overriddenFields: [...fields] }));
+    }
+    resetOverrides() {
+      if (this.type !== 'INSTANCE') throw typeError('resetOverrides', this.type);
+      if (this._s.isInstanceSublayer) throw new FigtionalUnsupported('resetOverrides on a nested instance');
+      const raw = session.raw(this.id);
+      raw.symbolData = { ...raw.symbolData, symbolOverrides: [] };
+      raw.componentPropAssignments = [];
+      delete raw.derivedSymbolData;
+      const main = this._s.mainComponent;
+      if (main) copyInstanceFields(raw, session.raw(main.id));
+      session.markDirty(this.id);
     }
     async getMainComponentAsync() {
       return this.mainComponent;

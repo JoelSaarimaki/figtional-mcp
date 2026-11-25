@@ -378,6 +378,94 @@ describe('use_figma edits', () => {
     expect(JSON.parse(fresh.text)).toBe(false);
   });
 
+  it('groups and ungroups layers without moving them, and keeps groups fitted', async () => {
+    const r = await run(`
+      const holder = figma.createFrame(); holder.x = 100; holder.y = 100; holder.resize(300, 300);
+      const a = figma.createRectangle(); a.resize(20, 20); holder.appendChild(a); a.x = 10; a.y = 10;
+      const b = figma.createRectangle(); b.resize(10, 10); holder.appendChild(b); b.x = 50; b.y = 30;
+      const g = figma.group([b, a], holder);
+      const grouped = { type: g.type, name: g.name, box: [g.x, g.y, g.width, g.height],
+        kids: g.children.map(c => [c.id === a.id ? 'a' : 'b', c.x, c.y]),
+        abs: [a.absoluteTransform[0][2], a.absoluteTransform[1][2]] };
+      b.x = 140; // the group grows to the right
+      const grown = [g.x, g.width];
+      a.x = -10; // and moves left, keeping b where it is
+      const moved = [g.x, g.width, b.absoluteTransform[0][2]];
+      const kids = figma.ungroup(g);
+      return { grouped, grown, moved, after: kids.map(c => [c.x, c.y, c.parent.id === holder.id]), id: g.id, holder: holder.id };
+    `);
+    expect(r.ok, r.text).toBe(true);
+    const o = JSON.parse(r.text);
+    expect(o.grouped).toEqual({
+      type: 'GROUP',
+      name: 'Group 1',
+      box: [10, 10, 50, 30],
+      kids: [
+        ['a', 0, 0],
+        ['b', 40, 20],
+      ],
+      abs: [110, 110],
+    });
+    expect(o.grown).toEqual([10, 150]); // b spans 140–150 inside the group
+    expect(o.moved).toEqual([0, 160, 250]); // a at -10 moves the group left; b stays at 250
+    expect(o.after).toEqual([
+      [0, 10, true],
+      [150, 30, true],
+    ]);
+    const doc = reload();
+    expect(doc.getNodeById(o.id)).toBeUndefined();
+    expect(doc.getNodeById(o.holder)!.children).toHaveLength(2);
+  });
+
+  it('exports nodes as PNG and SVG and reads their CSS', async () => {
+    const r = await run(`
+      const f = figma.createFrame(); f.resize(40, 20); f.cornerRadius = 4;
+      f.fills = [{ type: 'SOLID', color: { r: 1, g: 0, b: 0 } }];
+      const png = await f.exportAsync();
+      const big = await f.exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: 2 } });
+      const svg = await f.exportAsync({ format: 'SVG_STRING' });
+      const svgBytes = await f.exportAsync({ format: 'SVG' });
+      let jpg = null;
+      try { await f.exportAsync({ format: 'JPG' }); } catch (e) { jpg = e.message; }
+      const css = await f.getCSSAsync();
+      const size = (b) => [(b[16] << 24) | (b[17] << 16) | (b[18] << 8) | b[19], (b[20] << 24) | (b[21] << 16) | (b[22] << 8) | b[23]];
+      return { png: size(png), big: size(big), svg: svg.startsWith('<svg'), svgBytes: svgBytes.length === svg.length, jpg, css };
+    `);
+    expect(r.ok, r.text).toBe(true);
+    const o = JSON.parse(r.text);
+    expect(o.png).toEqual([40, 20]);
+    expect(o.big).toEqual([80, 40]);
+    expect(o.svg).toBe(true);
+    expect(o.svgBytes).toBe(true);
+    expect(o.jpg).toMatch(/^NotSupportedInFigtional: exportAsync with format JPG/);
+    expect(o.css).toMatchObject({
+      width: '40px',
+      height: '20px',
+      'background-color': '#ff0000',
+      'border-radius': '4px',
+    });
+  });
+
+  it('groups layers inside a frame laid out in the same call, and renders clipped-away content', async () => {
+    const r = await run(`
+      const root = figma.createFrame(); root.y = 2000; root.layoutMode = 'HORIZONTAL';
+      root.primaryAxisSizingMode = 'AUTO'; root.counterAxisSizingMode = 'AUTO'; root.paddingLeft = 24; root.paddingTop = 24;
+      const cell = figma.createFrame(); cell.resize(120, 120); root.appendChild(cell);
+      const a = figma.createRectangle(); a.resize(60, 60); a.x = 10; a.y = 10; cell.appendChild(a);
+      const g = figma.group([a], cell);
+      // A clipping frame whose only content lies outside it (resvg used to panic on this).
+      const clip = figma.createFrame(); clip.resize(50, 50); clip.clipsContent = true;
+      const away = figma.createRectangle(); away.y = -500; clip.appendChild(away);
+      return { g: [g.x, g.y], clip: clip.id };
+    `);
+    expect(r.ok, r.text).toBe(true);
+    const o = JSON.parse(r.text);
+    expect(o.g).toEqual([10, 10]);
+    const doc = reload();
+    const { renderPng } = await import('@figtional/fig-render');
+    expect(renderPng(doc, doc.getNodeById(o.clip)!).width).toBe(50);
+  });
+
   it('accumulates edits in --out copies and keeps the original untouched', async () => {
     const before = readFileSync(file);
     const out = join(dir, 'out');

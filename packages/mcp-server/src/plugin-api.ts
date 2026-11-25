@@ -29,8 +29,14 @@ import {
   transformSubpaths,
   textDataOf,
   INSTANCE_FIELDS,
+  invert,
+  multiply,
+  transformedBounds,
+  isGroupData,
+  outlineOf,
 } from '@figtional/fig-model';
-import { fontFallbacksIn, renderPng } from '@figtional/fig-render';
+import { fontFallbacksIn, renderPng, renderSvg } from '@figtional/fig-render';
+import { nodeCss } from './design-context.js';
 
 import { FigtionalUnsupported } from './unsupported.js';
 import {
@@ -60,6 +66,13 @@ import { variablesMembers } from './node-variables.js';
 import { vectorsMembers } from './node-vectors.js';
 
 export { FigtionalUnsupported };
+
+/** Plugin id under which use_figma's own plugin data is stored (Figma MCP's id isn't known). */
+const PLUGIN_ID = 'figma-mcp-use-figma';
+const checkNamespace = (ns: string) => {
+  if (typeof ns !== 'string' || !/^[A-Za-z0-9_.]{3,}$/.test(ns))
+    throw new Error('Invalid namespace: it must be at least 3 characters of letters, digits, _ and .');
+};
 
 export interface ApiContext {
   doc: FigDocument;
@@ -371,17 +384,49 @@ export function createFigmaApi(ctx: ApiContext) {
     toString() {
       return `[Node ${this.id}]`;
     }
-    getPluginData() {
-      return '';
+    // Plugin data is stored as { pluginID, key, value } (verified). Shared plugin data uses an
+    // empty pluginID and "<namespace>-<key>" (assumed from Futurice: "tokens-fill" etc.).
+    private pluginEntries(): any[] {
+      return doc.getNodeById(this.id)?.data.pluginData ?? [];
     }
-    setPluginData() {
-      throw new FigtionalUnsupported('setPluginData');
+    private writePluginData(pluginID: string, key: string, value: string) {
+      if (scene(this.id).isInstanceSublayer)
+        throw new FigtionalUnsupported('plugin data on a layer inside an instance');
+      const raw = session.raw(this.id);
+      const list = (raw.pluginData ?? []).filter((e: any) => !(e.pluginID === pluginID && e.key === key));
+      if (value !== '') list.push({ pluginID, value, key });
+      if (list.length) raw.pluginData = list;
+      else delete raw.pluginData;
+      session.markDirty(this.id);
     }
-    getSharedPluginData() {
-      return '';
+    getPluginData(key: string) {
+      return this.pluginEntries().find((e) => e.pluginID === PLUGIN_ID && e.key === String(key))?.value ?? '';
     }
-    setSharedPluginData() {
-      throw new FigtionalUnsupported('setSharedPluginData');
+    setPluginData(key: string, value: string) {
+      if (typeof value !== 'string') throw new Error('setPluginData value must be a string');
+      this.writePluginData(PLUGIN_ID, String(key), value);
+    }
+    getPluginDataKeys() {
+      return this.pluginEntries()
+        .filter((e) => e.pluginID === PLUGIN_ID)
+        .map((e) => e.key);
+    }
+    getSharedPluginData(namespace: string, key: string) {
+      checkNamespace(namespace);
+      const k = `${namespace}-${key}`;
+      return this.pluginEntries().find((e) => e.pluginID === '' && e.key === k)?.value ?? '';
+    }
+    setSharedPluginData(namespace: string, key: string, value: string) {
+      checkNamespace(namespace);
+      if (typeof value !== 'string') throw new Error('setSharedPluginData value must be a string');
+      this.writePluginData('', `${namespace}-${key}`, value);
+    }
+    getSharedPluginDataKeys(namespace: string) {
+      checkNamespace(namespace);
+      const prefix = `${namespace}-`;
+      return this.pluginEntries()
+        .filter((e) => e.pluginID === '' && e.key.startsWith(prefix))
+        .map((e) => e.key.slice(prefix.length));
     }
     query(selector: string) {
       return makeQueryResult(querySelector(this, String(selector)));
@@ -412,15 +457,9 @@ export function createFigmaApi(ctx: ApiContext) {
       const childScene = scene(child.id);
       if (childScene.isInstanceSublayer) throw new Error('Cannot move a layer that is inside an instance');
       if (child.type === 'PAGE') throw new Error('Cannot move a page into a node');
-      // Keep the absolute position when reparenting into a non-auto-layout container.
-      const abs = childScene.absoluteTransform;
+      // Like Figma, reparenting keeps the child's x/y relative to its parent (Figma's own skills:
+      // "Reparenting preserves relative x/y values"), so its position on the canvas may change.
       session.move(child.id, this.id, index);
-      const newParent = scene(this.id);
-      if (!stackProps(newParent.data) || childScene.data.stackPositioning === 'ABSOLUTE') {
-        const p = newParent.figType === 'CANVAS' ? IDENTITY_T : newParent.absoluteTransform;
-        const raw = session.raw(child.id);
-        raw.transform = { ...(raw.transform ?? IDENTITY_T), m02: abs.m02 - p.m02, m12: abs.m12 - p.m12 };
-      }
       session.markDirty(this.id);
     }
   }
@@ -662,8 +701,39 @@ export function createFigmaApi(ctx: ApiContext) {
       });
       return { width: r.width, height: r.height };
     }
-    async exportAsync() {
-      throw new FigtionalUnsupported('exportAsync', 'Use node.screenshot() or the get_screenshot tool.');
+    async exportAsync(settings: { format?: string; constraint?: { type: string; value: number } } = {}) {
+      session.commit();
+      const s = scene(this.id);
+      const format = settings.format ?? 'PNG';
+      if (format === 'SVG' || format === 'SVG_STRING') {
+        const r = renderSvg(doc, s);
+        for (const [font, used] of fontFallbacksIn(r.warnings))
+          (ctx.drawnFontFallbacks ??= new Map()).set(font, used);
+        return format === 'SVG_STRING' ? r.svg : Uint8Array.from(Buffer.from(r.svg));
+      }
+      if (format === 'PNG') {
+        const c = settings.constraint;
+        const scale =
+          c?.type === 'WIDTH'
+            ? c.value / Math.max(s.width, 1e-6)
+            : c?.type === 'HEIGHT'
+              ? c.value / Math.max(s.height, 1e-6)
+              : (c?.value ?? 1);
+        const r = renderPng(doc, s, { scale, maxSize: 4096 });
+        for (const [font, used] of fontFallbacksIn(r.warnings))
+          (ctx.drawnFontFallbacks ??= new Map()).set(font, used);
+        return Uint8Array.from(r.png);
+      }
+      if (['JPG', 'PDF', 'JSON_REST_V1'].includes(format))
+        throw new FigtionalUnsupported(
+          `exportAsync with format ${format}`,
+          'PNG, SVG and SVG_STRING are supported.',
+        );
+      throw new Error(`Invalid export format "${format}"`);
+    }
+    async getCSSAsync() {
+      session.commit();
+      return nodeCss(doc, ctx.fileKey, scene(this.id));
     }
     get reactions() {
       return deepFreeze([]);
@@ -746,8 +816,14 @@ export function createFigmaApi(ctx: ApiContext) {
         LINE: 'Line',
         SYMBOL: 'Component',
         SECTION: 'Section',
+        GROUP: 'Group',
+        REGULAR_POLYGON: 'Polygon',
+        STAR: 'Star',
       }[type] ?? type;
-    const existing = [...doc.nodes.values()].filter((n) => n.type === type).length;
+    const existing =
+      type === 'GROUP'
+        ? [...doc.nodes.values()].filter((n) => isGroupData(n)).length
+        : [...doc.nodes.values()].filter((n) => n.type === type).length;
     const i = (counters.get(type) ?? existing) + 1;
     counters.set(type, i);
     return `${base} ${i}`;
@@ -811,6 +887,100 @@ export function createFigmaApi(ctx: ApiContext) {
     componentsMembers(rt),
     variablesMembers(rt),
   );
+
+  /**
+   * Wraps layers in a new parent node (group or boolean operation) without moving them on the
+   * canvas; the new node starts at the layers' bounds (the end-of-call fitting refines it).
+   */
+  const wrapNodes = (
+    fn: string,
+    nodes: any[],
+    parent: any,
+    index: number | undefined,
+    makeFields: (items: SceneNode[]) => Record<string, unknown>,
+    type = 'FRAME',
+  ) => {
+    if (!Array.isArray(nodes) || !nodes.length)
+      throw new Error(`First argument to ${fn}() must be an array of at least one node`);
+    // Positions are read below: apply pending auto layout first, as Figma does.
+    flushLayout();
+    const parentId: string = parent?.id ?? pageId();
+    const p = scene(parentId);
+    const items = nodes.map((n) => {
+      if (!n?.id || !doc.getNodeById(n.id)) throw new Error('Expected a node');
+      const s = scene(n.id);
+      if (s.isInstanceSublayer) throw new Error('Cannot group a layer inside an instance');
+      if (s.figType === 'CANVAS' || s.figType === 'DOCUMENT') throw new Error('Cannot group a page');
+      return s;
+    });
+    // Keep the layers' stacking order when they share a parent.
+    items.sort((a, b) =>
+      a.parent === b.parent
+        ? (a.data.parentIndex?.position ?? '') < (b.data.parentIndex?.position ?? '')
+          ? -1
+          : 1
+        : 0,
+    );
+    // Each layer's transform in the new parent's space, and the bounds of them all.
+    const toParent = invert(p.figType === 'CANVAS' ? IDENTITY_T : p.absoluteTransform);
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    const rel = items.map((s) => {
+      const m = multiply(toParent, s.absoluteTransform);
+      const b = transformedBounds(m, s.width, s.height);
+      minX = Math.min(minX, b.x);
+      minY = Math.min(minY, b.y);
+      maxX = Math.max(maxX, b.x + b.width);
+      maxY = Math.max(maxY, b.y + b.height);
+      return m;
+    });
+    const g = session.create(type, parentId, index, {
+      visible: true,
+      opacity: 1,
+      size: { x: maxX - minX, y: maxY - minY },
+      transform: { ...IDENTITY_T, m02: minX, m12: minY },
+      ...makeFields(items),
+    });
+    const gid = guidToString(g.guid);
+    items.forEach((s, i) => {
+      session.move(s.id, gid);
+      const m = rel[i]!;
+      session.raw(s.id).transform = { ...m, m02: m.m02 - minX, m12: m.m12 - minY };
+      session.markDirty(s.id);
+    });
+    return wrap(scene(gid));
+  };
+
+  const BOOLEAN_NAMES: Record<string, string> = {
+    UNION: 'Union',
+    SUBTRACT: 'Subtract',
+    INTERSECT: 'Intersect',
+    EXCLUDE: 'Exclude',
+  };
+  /** A boolean operation takes the fill and stroke of its bottom-most layer, as in Figma. */
+  const booleanOp = (op: string, nodes: any[], parent: any, index: number | undefined) =>
+    wrapNodes(
+      op.toLowerCase(),
+      nodes,
+      parent,
+      index,
+      (items) => {
+        const bottom = items[0]!.data;
+        return {
+          name: BOOLEAN_NAMES[op]!,
+          strokeWeight: bottom.strokeWeight ?? 1,
+          strokeAlign: bottom.strokeAlign ?? 'INSIDE',
+          strokeJoin: bottom.strokeJoin ?? 'MITER',
+          fillPaints: structuredClone(bottom.fillPaints ?? []),
+          ...(bottom.strokePaints?.length ? { strokePaints: structuredClone(bottom.strokePaints) } : {}),
+          // The file's BooleanOperation enum calls EXCLUDE "XOR".
+          booleanOperation: op === 'EXCLUDE' ? 'XOR' : op,
+        };
+      },
+      'BOOLEAN_OPERATION',
+    );
 
   const { variables } = createVariablesApi(rt);
 
@@ -889,6 +1059,12 @@ export function createFigmaApi(ctx: ApiContext) {
     createEllipse() {
       return create('ELLIPSE', { fillPaints: [structuredClone(GREY)] });
     },
+    createPolygon() {
+      return create('REGULAR_POLYGON', { count: 3, fillPaints: [structuredClone(GREY)] });
+    },
+    createStar() {
+      return create('STAR', { count: 5, starInnerScale: 0.382, fillPaints: [structuredClone(GREY)] });
+    },
     createLine() {
       return create('LINE', { size: { x: 100, y: 0 }, strokePaints: [structuredClone(BLACK)] });
     },
@@ -949,8 +1125,83 @@ export function createFigmaApi(ctx: ApiContext) {
       );
       return wrap(scene(guidToString(set.guid)));
     },
-    group() {
-      throw new FigtionalUnsupported('figma.group', 'Use a frame (createFrame / createAutoLayout) instead.');
+    group(nodes: any[], parent: any, index?: number) {
+      return wrapNodes('group', nodes, parent, index, () => ({
+        name: defaultName('GROUP'),
+        strokeWeight: 1,
+        strokeAlign: 'INSIDE',
+        strokeJoin: 'MITER',
+        frameMaskDisabled: false,
+        resizeToFit: true,
+      }));
+    },
+    union(nodes: any[], parent: any, index?: number) {
+      return booleanOp('UNION', nodes, parent, index);
+    },
+    subtract(nodes: any[], parent: any, index?: number) {
+      return booleanOp('SUBTRACT', nodes, parent, index);
+    },
+    intersect(nodes: any[], parent: any, index?: number) {
+      return booleanOp('INTERSECT', nodes, parent, index);
+    },
+    exclude(nodes: any[], parent: any, index?: number) {
+      return booleanOp('EXCLUDE', nodes, parent, index);
+    },
+    flatten(nodes: any[], parent?: any, index?: number) {
+      if (!Array.isArray(nodes) || !nodes.length)
+        throw new Error('First argument to flatten() must be an array of at least one node');
+      flushLayout();
+      const items = nodes.map((n) => {
+        if (!n?.id || !doc.getNodeById(n.id)) throw new Error('Expected a node');
+        const s = scene(n.id);
+        if (s.isInstanceSublayer) throw new Error('Cannot flatten a layer inside an instance');
+        return s;
+      });
+      const first = items[0]!;
+      const parentScene = parent?.id ? scene(parent.id) : first.parent!;
+      const at =
+        index ?? Math.max(...items.map((s) => parentScene.children.findIndex((c) => c.id === s.id))) + 1;
+      const toParent = invert(parentScene.figType === 'CANVAS' ? IDENTITY_T : parentScene.absoluteTransform);
+      const paths: Subpath[] = [];
+      let rule: 'NONZERO' | 'ODD' = 'NONZERO';
+      for (const s of items) {
+        const m = multiply(toParent, s.absoluteTransform);
+        for (const o of outlineOf(doc, s.data)) {
+          paths.push(...transformSubpaths(o.paths, m));
+          if (o.rule === 'ODD') rule = 'ODD';
+        }
+      }
+      if (!paths.length) throw new Error('Nothing to flatten: the layers have no outline');
+      const bottom = first.data;
+      const v = session.create('VECTOR', parentScene.id, at, {
+        name: 'Vector',
+        visible: true,
+        opacity: 1,
+        ...vectorFields(paths, rule),
+        strokeWeight: bottom.strokeWeight ?? 0,
+        strokeAlign: bottom.strokeAlign ?? 'CENTER',
+        strokeJoin: bottom.strokeJoin ?? 'MITER',
+        fillPaints: structuredClone(bottom.fillPaints ?? []),
+        strokePaints: structuredClone(bottom.strokePaints ?? []),
+      });
+      for (const s of items) session.remove(s.id);
+      return wrap(scene(guidToString(v.guid)));
+    },
+    ungroup(node: any) {
+      const s = node?.id ? scene(node.id) : undefined;
+      if (!s || s.type !== 'GROUP') throw new Error('Expected a group node');
+      const parent = s.parent!;
+      const at = parent.children.findIndex((c) => c.id === s.id);
+      const groupT = s.relativeTransform;
+      const kids = [...s.children];
+      kids.forEach((c, i) => {
+        const t = multiply(groupT, c.relativeTransform);
+        session.move(c.id, parent.id, at + i);
+        session.raw(c.id).transform = t;
+        session.markDirty(c.id);
+      });
+      session.remove(s.id);
+      return kids.map((c) => wrap(scene(c.id)));
     },
     createVector() {
       return create('VECTOR', {
