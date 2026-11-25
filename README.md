@@ -12,7 +12,7 @@ It also includes a read-only **web viewer** that shows `.fig` files the way Figm
 
 ![The Figtional viewer showing the "Responsive example" file: layer tree on the left, four mobile and tablet screens on the canvas with one card selected, and the inspect panel with its auto layout, fill and prototype settings on the right](docs/images/viewer.png)
 
-> **Status:** version 0.1.1, early development, usable for testing. See [CHANGELOG.md](CHANGELOG.md) for what's in each version. All of Figma MCP's read tools work, the viewer works, and `use_figma` supports a growing subset of the Plugin API for editing (see [Limitations](#limitations)). The roadmap is in [PLAN.md](PLAN.md).
+> **Status:** version 0.1.2, early development, usable for testing. See [CHANGELOG.md](CHANGELOG.md) for what's in each version. All of Figma MCP's read tools work, the viewer works, and `use_figma` supports a growing subset of the Plugin API for editing (see [Limitations](#limitations)). The roadmap is in [PLAN.md](PLAN.md).
 
 ## Contents
 

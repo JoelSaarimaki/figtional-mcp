@@ -6,6 +6,8 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 
 ## [Unreleased]
 
+## [0.1.2]
+
 ### Fixed
 
 - Windows: edits (`use_figma`) failed with `EPERM` while the viewer had the same file open, because the viewer kept the file open between reads. Files are now opened only for each read, a reader notices when the file was replaced, and saving retries briefly if another program is reading the file at that moment.
@@ -50,6 +52,7 @@ First release.
 - **Web viewer** (`figtional serve`): page selector, layer tree, pan/zoom canvas, inspect panel, file info, prototype arrows and a basic Present mode. It reloads on file changes and only listens on `127.0.0.1`.
 - **CLI:** `mcp`, `serve`, `dump`, `inspect`, `validate` and per-command help.
 
-[Unreleased]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.1...development
+[Unreleased]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.2...development
+[0.1.2]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/JoelSaarimaki/figtional-mcp/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/JoelSaarimaki/figtional-mcp/releases/tag/v0.1.0
