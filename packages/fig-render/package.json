@@ -1,6 +1,6 @@
 {
   "name": "@figtional/fig-render",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "Render .fig nodes to SVG and PNG.",
   "license": "MIT",
