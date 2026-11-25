@@ -6,6 +6,14 @@ New entries go under **[Unreleased]** on the `development` branch, in the groups
 
 ## [Unreleased]
 
+### Fixed
+
+- Windows: edits (`use_figma`) failed with `EPERM` while the viewer had the same file open, because the viewer kept the file open between reads. Files are now opened only for each read, a reader notices when the file was replaced, and saving retries briefly if another program is reading the file at that moment.
+
+### Changed
+
+- README: the install instructions point to the web viewer, and step 5 explains that the viewer and the MCP server (or Claude Desktop extension) run side by side and that the viewer reloads changed files within about 2 seconds.
+
 ## [0.1.1]
 
 ### Added

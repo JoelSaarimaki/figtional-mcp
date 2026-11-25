@@ -84,6 +84,8 @@ npx figtional setup
 
 `npx figtional` works anywhere **inside** the repository folder; `npx figtional --help` lists the commands. The setup connects your apps to this clone. After pulling new changes, run `npm install` and `npm run build` again. The `main` branch always holds the latest release; `development` has the changes for the next one.
 
+> **Next to the agent, open the [web viewer](#5-watch-the-files-in-the-viewer).** It shows your `.fig` files the way Figma does and updates within a couple of seconds whenever the agent changes one, so you can see what an edit actually did. It comes with every install option except the Claude Desktop extension: extension users can download the zip as well and use it only for the viewer (no setup needed).
+
 ### 3. Export a `.fig` file from Figma
 
 In Figma, open the file and choose **Main menu → File → Save local copy…**. Put the `.fig` file in a folder of its own, for example `C:\designs\` or `~/designs/`. If the file uses shared libraries, the parts it uses are included in the export.
@@ -179,7 +181,7 @@ Any MCP client that can start a stdio server works with the same command and arg
 
 ### 5. Watch the files in the viewer
 
-In a second terminal:
+Start the viewer in a terminal, on the same folder you gave the agent:
 
 ```bash
 npx figtional serve --open /path/to/designs          # in a clone of the repository
@@ -187,7 +189,13 @@ figtional.cmd serve --open C:\path\to\designs        # Windows, in the downloade
 ./figtional serve --open ~/path/to/designs           # macOS / Linux, in the downloaded folder
 ```
 
-This opens <http://127.0.0.1:3846> in your browser. The viewer reloads whenever the agent saves a change, so you can watch edits as they happen.
+This opens <http://127.0.0.1:3846> in your browser. Keep the terminal open while you use it; Ctrl+C stops the viewer.
+
+**The viewer and the agent run side by side.** The MCP server (started by your AI app, or the Claude Desktop extension) and the viewer are separate programs that read the same files, so you can start them in any order and keep both running. Only the MCP server changes files; the viewer never does.
+
+- **Automatic updates.** Every 2 seconds the viewer checks whether the open file changed on disk. When the agent saves an edit, the viewer reloads the file and keeps the page and selection you were looking at. (It pauses while the browser tab is hidden and catches up when you return.)
+- **New files** that appear in the folder show up in the file switcher after you reload the browser page.
+- **Edit copies:** if you run the MCP server with `--out <folder>`, the edits are saved in that folder, so point the viewer at it to see them.
 
 ## Using the MCP server
 
@@ -271,7 +279,7 @@ figtional serve --port 4000 ./designs/
 - **Left:** the layer tree. **Right:** the inspect panel (position, auto layout, fills, text, components, variables, prototype) and a **File** tab with variables per mode and styles.
 - **Canvas:** drag to pan, scroll to move, Ctrl/Cmd + scroll to zoom. Click selects a layer; Ctrl/Cmd-click selects the deepest layer. Shift+1 zooms to fit, Shift+2 zooms to the selection.
 - **Links:** `?file=<key>&page=<id>&node-id=1-4`, plus `&proto=1` or `&present=1`.
-- **Read-only, local.** It only listens on `127.0.0.1` and reloads when files change on disk.
+- **Read-only, local.** It only listens on `127.0.0.1`. It can run at the same time as the MCP server, and reloads the open file within about 2 seconds when it changes on disk (see [step 5](#5-watch-the-files-in-the-viewer)).
 - **Without arguments** it serves every `.fig` below the current folder. To avoid long scans it refuses drive roots, your home folder and system folders, and stops after 2,000 folders.
 
 ## Other commands
